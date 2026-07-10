@@ -157,7 +157,6 @@ export default function Home() {
                   <div className="text-xs text-muted/40 font-mono mb-4">{s.step}</div>
                   <h2 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-[-0.03em] mb-6 text-muted group-hover:text-text transition-colors duration-500">
                     {s.word}
-                    <span className="text-text">.</span>
                   </h2>
                   <p className="text-lg text-muted max-w-xl leading-relaxed">{s.desc}</p>
                 </div>
