@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClarityForge
+
+A browser-based IDE for Clarity smart contracts on the Stacks blockchain. Write, simulate, and deploy — no CLI required.
+
+## Features
+
+- **Browser editor** — Syntax highlighting, autocomplete, and real-time diagnostics for Clarity
+- **Live simulation** — Execute contracts in-browser and inspect results instantly
+- **Template library** — Production-ready templates for tokens, NFTs, DAOs, AMMs, staking, and multi-sig wallets
+- **One-click deploy** — Connect your wallet and deploy to Stacks testnet without touching a terminal
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+git clone https://github.com/subheeksh5599/ClarityForge.git
+cd ClarityForge
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16 |
+| Styling | Tailwind CSS 4 |
+| Editor | Monaco Editor |
+| Animation | GSAP ScrollTrigger |
+| Language | TypeScript |
 
-## Learn More
+## Pages
 
-To learn more about Next.js, take a look at the following resources:
+- `/` — Landing page
+- `/demo` — Interactive editor with live simulation
+- `/templates` — Contract template gallery
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Funding
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+ClarityForge is funded by [Stacks DeGrants](https://zeroauthoritydao.com/funding/degrants), a community-led microgrant program supported by the Stacks Endowment.
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT

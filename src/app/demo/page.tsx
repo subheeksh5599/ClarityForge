@@ -82,40 +82,38 @@ export default function Demo() {
     setRunning(false);
   };
 
+  const labels: Record<string, string> = { token: "Token", nft: "NFT", dao: "DAO" };
+
   return (
     <>
       <Nav />
-      <main className="pt-24 pb-20 px-8">
+      <main className="min-h-screen pt-24 pb-20 px-8">
         <div className="max-w-6xl mx-auto">
-          <p className="text-sm text-muted font-mono tracking-[0.15em] uppercase mb-4">
-            Interactive Demo
-          </p>
-          <h1 className="text-4xl sm:text-5xl font-bold tracking-[-0.03em] mb-10">
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-[-0.03em] mb-12">
             Write Clarity right now.
           </h1>
 
           <div className="border border-line rounded-sm overflow-hidden bg-[#0A0A0B]">
-            {/* Toolbar */}
-            <div className="flex items-center justify-between px-4 h-12 border-b border-line">
-              <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between px-5 h-12 border-b border-line">
+              <div className="flex items-center">
                 {(Object.keys(TEMPLATES) as Array<"token" | "nft" | "dao">).map((k) => (
                   <button
                     key={k}
                     onClick={() => { setTemplate(k as "token" | "nft" | "dao"); setOutput(null); }}
-                    className={`px-3 py-1.5 text-xs font-mono transition-colors ${
+                    className={`px-4 py-3 text-xs font-mono transition-colors border-b-2 -mb-px ${
                       template === k
-                        ? "text-text bg-text/5"
-                        : "text-muted hover:text-text"
+                        ? "text-text border-text"
+                        : "text-muted border-transparent hover:text-text"
                     }`}
                   >
-                    {k === "token" ? "Token" : k === "nft" ? "NFT" : "DAO"}
+                    {labels[k]}
                   </button>
                 ))}
               </div>
               <button
                 onClick={handleRun}
                 disabled={running}
-                className={`flex items-center gap-2 px-4 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-2 px-5 py-1.5 text-xs font-medium transition-colors ${
                   running
                     ? "text-muted cursor-wait"
                     : "text-bg bg-text hover:bg-text/90"
@@ -126,8 +124,7 @@ export default function Demo() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-line">
-              {/* Editor */}
-              <div className="h-[460px]">
+              <div className="h-[520px]">
                 <MonacoEditor
                   language="rust"
                   theme="clarityforge"
@@ -137,19 +134,20 @@ export default function Demo() {
                       base: "vs-dark",
                       inherit: true,
                       rules: [
-                        { token: "comment", foreground: "6B6B6B", fontStyle: "italic" },
-                        { token: "keyword", foreground: "A0A0A0" },
-                        { token: "string", foreground: "EBEBE5" },
-                        { token: "number", foreground: "999999" },
+                        { token: "comment", foreground: "555555", fontStyle: "italic" },
+                        { token: "keyword", foreground: "999999" },
+                        { token: "string", foreground: "CCCCCC" },
+                        { token: "number", foreground: "888888" },
                       ],
                       colors: {
                         "editor.background": "#0A0A0B",
                         "editor.foreground": "#EBEBE5",
-                        "editor.lineHighlightBackground": "#1A1A1C",
-                        "editor.selectionBackground": "#EBEBE522",
+                        "editor.lineHighlightBackground": "#141416",
+                        "editor.selectionBackground": "#EBEBE515",
                         "editorCursor.foreground": "#EBEBE5",
-                        "editorLineNumber.foreground": "#333333",
+                        "editorLineNumber.foreground": "#2A2A2C",
                         "editorLineNumber.activeForeground": "#6B6B6B",
+                        "editorGutter.background": "#0A0A0B",
                       },
                     });
                   }}
@@ -159,7 +157,7 @@ export default function Demo() {
                     lineNumbers: "on",
                     minimap: { enabled: false },
                     scrollBeyondLastLine: false,
-                    padding: { top: 20, bottom: 20 },
+                    padding: { top: 24, bottom: 24 },
                     renderLineHighlight: "line",
                     cursorBlinking: "smooth",
                     overviewRulerLanes: 0,
@@ -168,6 +166,7 @@ export default function Demo() {
                     folding: false,
                     lineNumbersMinChars: 3,
                     automaticLayout: true,
+                    scrollbar: { vertical: "hidden", horizontal: "hidden" },
                   }}
                   loading={
                     <div className="h-full flex items-center justify-center text-muted text-sm font-mono">
@@ -177,19 +176,15 @@ export default function Demo() {
                 />
               </div>
 
-              {/* Output */}
-              <div className="h-[460px] bg-[#080809] p-8 overflow-auto">
-                <p className="text-xs text-muted font-mono uppercase tracking-wider mb-6">
-                  Output
-                </p>
+              <div className="h-[520px] bg-[#080809] p-8 overflow-auto">
                 {output ? (
                   <pre className="font-mono text-sm text-text/80 leading-relaxed whitespace-pre-wrap">
                     {output}
                   </pre>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
+                  <div className="flex items-center justify-center h-full">
                     <p className="text-muted text-sm">
-                      Click <span className="text-text">Run</span> to simulate
+                      Click <span className="text-text">Run</span> to simulate your contract
                     </p>
                   </div>
                 )}
