@@ -7,6 +7,7 @@ import Nav from "../../components/Nav";
 import Footer from "../../components/Footer";
 import StateVisualizer from "../../components/StateVisualizer";
 import { TEMPLATES, getTemplate, Template } from "../../lib/clarity/templates";
+import { getExecutableFunctions, getDefaultParams, executeFunction, ExecutionResult } from "../../lib/clarity/executor";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -20,10 +21,13 @@ function DemoContent() {
   const [code, setCode] = useState(template.code);
   const [output, setOutput] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<Record<string, unknown> | null>(null);
-  const [viewMode, setViewMode] = useState<"text" | "visual">("visual");
+  const [viewMode, setViewMode] = useState<"visual" | "text" | "interact">("visual");
   const [running, setRunning] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [selectedFn, setSelectedFn] = useState<string>("");
+  const [fnParams, setFnParams] = useState<string[]>([]);
+  const [execResult, setExecResult] = useState<ExecutionResult | null>(null);
 
   useEffect(() => {
     setCode(template.code);
@@ -253,22 +257,17 @@ function DemoContent() {
               <div className="h-[520px] bg-[#080809] flex flex-col">
                 {/* Tabs */}
                 <div className="flex items-center gap-1 px-5 py-2 border-b border-line shrink-0">
-                  <button
-                    onClick={() => setViewMode("visual")}
-                    className={`px-3 py-1 text-xs font-mono transition-colors ${
-                      viewMode === "visual" ? "text-text" : "text-muted hover:text-text"
-                    }`}
-                  >
-                    Visual
-                  </button>
-                  <button
-                    onClick={() => setViewMode("text")}
-                    className={`px-3 py-1 text-xs font-mono transition-colors ${
-                      viewMode === "text" ? "text-text" : "text-muted hover:text-text"
-                    }`}
-                  >
-                    Text
-                  </button>
+                  {(["visual", "interact", "text"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setViewMode(mode)}
+                      className={`px-3 py-1 text-xs font-mono transition-colors capitalize ${
+                        viewMode === mode ? "text-text" : "text-muted hover:text-text"
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
                 </div>
 
                 {/* Content */}
@@ -286,6 +285,16 @@ function DemoContent() {
                         <StateVisualizer
                           result={analysisResult as unknown as import("../../lib/clarity/analyzer").AnalysisResult}
                           costEstimate={(analysisResult as Record<string, unknown>).costEstimate as number | undefined}
+                        />
+                      ) : viewMode === "interact" && analysisResult ? (
+                        <InteractPanel
+                          analysisResult={analysisResult as Record<string, unknown>}
+                          selectedFn={selectedFn}
+                          setSelectedFn={setSelectedFn}
+                          fnParams={fnParams}
+                          setFnParams={setFnParams}
+                          execResult={execResult}
+                          setExecResult={setExecResult}
                         />
                       ) : (
                         <pre className="font-mono text-sm text-text/80 leading-relaxed whitespace-pre-wrap">
@@ -309,6 +318,142 @@ function DemoContent() {
       </main>
       <Footer />
     </>
+  );
+}
+
+function InteractPanel({
+  analysisResult,
+  selectedFn,
+  setSelectedFn,
+  fnParams,
+  setFnParams,
+  execResult,
+  setExecResult,
+}: {
+  analysisResult: Record<string, unknown>;
+  selectedFn: string;
+  setSelectedFn: (v: string) => void;
+  fnParams: string[];
+  setFnParams: (v: string[]) => void;
+  execResult: ExecutionResult | null;
+  setExecResult: (v: ExecutionResult | null) => void;
+}) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const defs = (analysisResult.definitions ?? []) as any[];
+  const fns = getExecutableFunctions(defs);
+
+  const handleSelectFn = (name: string) => {
+    setSelectedFn(name);
+    const fn = defs.find((d) => d.name === name);
+    if (fn) {
+      setFnParams(getDefaultParams(fn));
+    }
+    setExecResult(null);
+  };
+
+  const handleExecute = () => {
+    const fn = defs.find((d) => d.name === selectedFn);
+    if (!fn) return;
+    const result = executeFunction(fn, defs, fnParams);
+    setExecResult(result);
+  };
+
+  const icon = (type: string) =>
+    type === "check" ? "✓" : type === "read" ? "👁" : type === "write" ? "✎" :
+    type === "transfer" ? "→" : type === "emit" ? "⚡" : "↩";
+
+  if (fns.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted text-sm">No executable functions found. Run analysis first.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs text-muted font-mono uppercase tracking-wider mb-3">Function</p>
+        <select
+          value={selectedFn}
+          onChange={(e) => handleSelectFn(e.target.value)}
+          className="w-full bg-[#0A0A0B] border border-line text-sm text-text px-3 py-2 rounded-sm font-mono focus:outline-none focus:border-text/40"
+        >
+          <option value="">Select a function...</option>
+          {fns.map((f) => (
+            <option key={f.name} value={f.name}>
+              {f.name} ({f.type === "public-fn" ? "public" : "read-only"})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {selectedFn && fnParams.length > 0 && (
+        <div>
+          <p className="text-xs text-muted font-mono uppercase tracking-wider mb-3">Parameters</p>
+          <div className="space-y-2">
+            {fnParams.map((p, i) => (
+              <input
+                key={i}
+                type="text"
+                value={p}
+                onChange={(e) => {
+                  const next = [...fnParams];
+                  next[i] = e.target.value;
+                  setFnParams(next);
+                }}
+                className="w-full bg-[#0A0A0B] border border-line text-sm text-text px-3 py-2 rounded-sm font-mono focus:outline-none focus:border-text/40"
+                placeholder={`param ${i + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {selectedFn && (
+        <button
+          onClick={handleExecute}
+          className="w-full flex items-center justify-center gap-2 py-2 text-xs font-medium text-bg bg-text hover:bg-text/90 transition-colors"
+        >
+          ▶ Execute {selectedFn}
+        </button>
+      )}
+
+      {execResult && (
+        <div>
+          <p className="text-xs text-muted font-mono uppercase tracking-wider mb-4">
+            Execution Trace
+          </p>
+          <div className="space-y-2">
+            {execResult.steps.map((step, i) => (
+              <div
+                key={i}
+                className={`flex items-start gap-3 p-3 rounded-sm text-xs ${
+                  step.type === "return"
+                    ? "bg-text/5 border border-line"
+                    : step.type === "transfer"
+                    ? "bg-text/[0.02]"
+                    : ""
+                }`}
+              >
+                <span className="mt-0.5 shrink-0 w-5 text-center font-mono text-muted">
+                  {icon(step.type)}
+                </span>
+                <span className="text-text/80 font-mono leading-relaxed">{step.detail}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 pt-4 border-t border-line">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted font-mono">Cost</span>
+              <span className="text-text font-mono">
+                {execResult.costEstimate.toLocaleString()} µSTX
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
