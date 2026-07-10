@@ -41,7 +41,18 @@ function DemoContent() {
   const [splitRatio, setSplitRatio] = useState(60);
   const [renamingFile, setRenamingFile] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [unsavedFiles, setUnsavedFiles] = useState<Set<string>>(new Set());
+  const [useRealVM, setUseRealVM] = useState(true);
   const dragRef = { current: false };
+
+  // Mark file as unsaved when code changes from original
+  const markUnsaved = (id: string, code: string, original: string) => {
+    setUnsavedFiles((prev) => {
+      const next = new Set(prev);
+      if (code !== original) next.add(id); else next.delete(id);
+      return next;
+    });
+  };
 
   const switchTemplate = (t: Template) => {
     setFiles((prev) => [...prev, { id: nextFileId(), name: `${t.slug}.clar`, code: t.code }]);
@@ -81,20 +92,34 @@ function DemoContent() {
   const handleRun = async () => {
     setRunning(true); setOutput(null); setTxHash(null);
     try {
-      const res = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+      const endpoint = useRealVM ? "/api/execute" : "/api/analyze";
+      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
       if (!res.ok) { const err = await res.json().catch(() => ({ error: "Request failed" })); setOutput(`✗ ${err.error || `HTTP ${res.status}`}`); setRunning(false); return; }
       const data = await res.json(); setAnalysisResult(data);
       const l: string[] = [];
-      l.push(data.valid ? "✓ Contract analysis complete" : "✗ Contract has errors"); l.push("");
-      if (data.definitions?.length) { l.push("Defined:"); for (const d of data.definitions) { const lb = d.type === "fungible-token" ? "Token" : d.type === "non-fungible-token" ? "NFT" : d.type === "public-fn" ? "Public fn" : d.type === "read-only-fn" ? "Read-only fn" : d.type === "private-fn" ? "Private fn" : d.type === "data-var" ? "Data var" : d.type === "map" ? "Map" : d.type === "constant" ? "Constant" : d.type; l.push(`  • ${lb}: ${d.name} (line ${d.line})`); } l.push(""); }
+      l.push(data.valid ? "✓ Analysis complete" : "✗ Errors found");
+      if (data.vm) l[0] += ` (${data.vm})`;
+      l.push("");
+      if (data.definitions?.length) { l.push("Defined:"); for (const d of data.definitions) { const lb = d.type === "fungible-token" ? "Token" : d.type === "non-fungible-token" ? "NFT" : d.type === "public-fn" ? "Public fn" : d.type === "read-only-fn" ? "Read-only fn" : d.type === "private-fn" ? "Private fn" : d.type === "data-var" ? "Data var" : d.type === "map" ? "Map" : d.type; l.push(`  • ${lb}: ${d.name} (line ${d.line})`); } l.push(""); }
       if (data.stats) { l.push(`Lines: ${data.stats.totalLines}`); l.push(`Functions: ${data.stats.functions}`); l.push(`Data vars: ${data.stats.dataVars}`); l.push(`Maps: ${data.stats.maps}`); l.push(""); }
-      if (data.diagnostics?.length) { for (const d of data.diagnostics) l.push(`${d.severity === "error" ? "✗" : "⚠"} L${d.line}: ${d.message}`); l.push(""); }
+      if (data.diagnostics?.length) { for (const d of data.diagnostics) l.push(`${d.severity === "error" ? "✗" : d.severity === "warning" ? "⚠" : "ℹ"} L${d.line}: ${d.message}`); l.push(""); }
+      if (data.rawOutput?.length) { l.push("── Clarinet output ──"); for (const r of data.rawOutput.slice(0, 10)) l.push(r); l.push(""); }
       if (data.costEstimate) l.push(`Cost: ${data.costEstimate.toLocaleString()} µSTX`);
       if (data.valid) { l.push(""); l.push("→ Ready for testnet deployment"); }
       setOutput(l.join("\n"));
     } catch (e) { setOutput(`✗ ${e instanceof Error ? e.message : "Error"}`); }
     setRunning(false);
   };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); handleRun(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); handleRun(); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [code]);
 
   const handleDeploy = async () => {
     setDeploying(true); setTxHash(null);
@@ -141,7 +166,10 @@ function DemoContent() {
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                f.name
+                <span className="flex items-center gap-1">
+                  {unsavedFiles.has(f.id) && <span className="w-1.5 h-1.5 rounded-full bg-text/60" />}
+                  {f.name}
+                </span>
               )}
               {files.length > 1 && renamingFile !== f.id && (
                 <span onClick={(e) => { e.stopPropagation(); closeFile(f.id); }}
@@ -157,6 +185,11 @@ function DemoContent() {
       <div className="flex items-center justify-between px-4 h-8 border-b border-line bg-[#0C0C0D] shrink-0">
         <span className="text-[10px] text-muted font-mono">{activeFile.name}</span>
         <div className="flex items-center gap-2">
+          <button onClick={() => setUseRealVM(!useRealVM)}
+            className={`text-[10px] font-mono px-1.5 py-0.5 border ${useRealVM ? "border-text/30 text-text" : "border-line text-muted"}`}
+            title={useRealVM ? "Clarinet VM (local only)" : "Static analyzer"}>
+            VM
+          </button>
           <button onClick={handleRun} disabled={running}
             className={`flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium ${running ? "text-muted" : "text-bg bg-text hover:bg-text/90"}`}>
             ▶ {running ? "…" : "Run"}
@@ -219,10 +252,12 @@ function DemoContent() {
         <div className="flex items-center gap-3">
           <span>{activeFile.name}</span>
           {analysisResult && <span className="text-text/60">{(analysisResult as any).valid ? "✓" : "✗"}</span>}
+          {analysisResult && (analysisResult as any).vm && <span>{(analysisResult as any).vm}</span>}
         </div>
         <div className="flex items-center gap-3">
           {analysisResult && <span>{(analysisResult as any).stats?.totalLines ?? 0} lines</span>}
           <span>Clarity</span>
+          <span className="text-[9px] text-muted/50">Ctrl+S to run</span>
         </div>
       </div>
     </div>
