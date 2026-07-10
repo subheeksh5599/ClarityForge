@@ -61,24 +61,98 @@ const TEMPLATES: Record<string, string> = {
 };
 
 export default function Demo() {
+  const [code, setCode] = useState(TEMPLATES.token);
   const [template, setTemplate] = useState<"token" | "nft" | "dao">("token");
   const [output, setOutput] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
 
+  const switchTemplate = (k: "token" | "nft" | "dao") => {
+    setTemplate(k);
+    setCode(TEMPLATES[k]);
+    setOutput(null);
+  };
+
   const handleRun = async () => {
     setRunning(true);
     setOutput(null);
-    await new Promise((r) => setTimeout(r, 600));
-    setOutput(
-      "✓ Contract analysis complete\n" +
-        "\n" +
-        "• Syntax: valid\n" +
-        "• Type check: passed\n" +
-        "• Cost estimate: 12,400 microSTX\n" +
-        "• Functions defined: 2 public, 2 read-only\n" +
-        "\n" +
-        "→ Ready for testnet deployment"
-    );
+
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Request failed" }));
+        setOutput(`✗ Error: ${err.error || `HTTP ${res.status}`}`);
+        setRunning(false);
+        return;
+      }
+
+      const data = await res.json();
+
+      const lines: string[] = [];
+      if (data.valid) {
+        lines.push("✓ Contract analysis complete");
+      } else {
+        lines.push("✗ Contract has errors");
+      }
+      lines.push("");
+
+      // Definitions
+      if (data.definitions && data.definitions.length > 0) {
+        lines.push("Defined:");
+        for (const d of data.definitions) {
+          const label =
+            d.type === "fungible-token" ? "Fungible token" :
+            d.type === "non-fungible-token" ? "Non-fungible token" :
+            d.type === "public-fn" ? "Public function" :
+            d.type === "read-only-fn" ? "Read-only function" :
+            d.type === "private-fn" ? "Private function" :
+            d.type === "data-var" ? "Data variable" :
+            d.type === "map" ? "Data map" :
+            d.type === "constant" ? "Constant" :
+            d.type === "trait" ? "Trait" : d.type;
+          lines.push(`  • ${label}: ${d.name} (line ${d.line})`);
+        }
+        lines.push("");
+      }
+
+      // Stats
+      if (data.stats) {
+        lines.push(`Lines: ${data.stats.totalLines}`);
+        lines.push(`Functions: ${data.stats.functions}`);
+        lines.push(`Data vars: ${data.stats.dataVars}`);
+        lines.push(`Maps: ${data.stats.maps}`);
+        lines.push(`Tokens: ${data.stats.tokens}`);
+        lines.push("");
+      }
+
+      // Diagnostics
+      if (data.diagnostics && data.diagnostics.length > 0) {
+        for (const d of data.diagnostics) {
+          const icon = d.severity === "error" ? "✗" : d.severity === "warning" ? "⚠" : "ℹ";
+          lines.push(`${icon} Line ${d.line}: ${d.message}`);
+        }
+        lines.push("");
+      }
+
+      // Cost
+      if (data.costEstimate) {
+        lines.push(`Cost estimate: ${data.costEstimate.toLocaleString()} microSTX`);
+      }
+
+      if (data.valid) {
+        lines.push("");
+        lines.push("→ Ready for testnet deployment");
+      }
+
+      setOutput(lines.join("\n"));
+    } catch (e) {
+      setOutput(`✗ Analysis failed: ${e instanceof Error ? e.message : "Unknown error"}`);
+    }
+
     setRunning(false);
   };
 
@@ -99,7 +173,7 @@ export default function Demo() {
                 {(Object.keys(TEMPLATES) as Array<"token" | "nft" | "dao">).map((k) => (
                   <button
                     key={k}
-                    onClick={() => { setTemplate(k as "token" | "nft" | "dao"); setOutput(null); }}
+                    onClick={() => switchTemplate(k as "token" | "nft" | "dao")}
                     className={`px-4 py-3 text-xs font-mono transition-colors border-b-2 -mb-px ${
                       template === k
                         ? "text-text border-text"
@@ -128,7 +202,8 @@ export default function Demo() {
                 <MonacoEditor
                   language="rust"
                   theme="clarityforge"
-                  value={TEMPLATES[template]}
+                  value={code}
+                  onChange={(v) => setCode(v || "")}
                   beforeMount={(monaco) => {
                     monaco.editor.defineTheme("clarityforge", {
                       base: "vs-dark",
