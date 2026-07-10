@@ -1,31 +1,24 @@
+import Link from "next/link";
+
 export default function Footer() {
   return (
-    <footer className="border-t border-border py-12">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2.5">
-            <span className="w-6 h-6 rounded bg-accent flex items-center justify-center">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                <path d="M3 13L8 3L13 13H3Z" stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" />
-              </svg>
-            </span>
-            <span className="font-bold text-sm tracking-tight">
-              Clarity<span className="text-accent">Forge</span>
-            </span>
-          </div>
-
-          <p className="text-xs text-muted">
-            Funded by{" "}
-            <a
-              href="https://zeroauthoritydao.com/funding/degrants"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-text hover:text-accent transition-colors"
-            >
-              Stacks DeGrants
-            </a>
-            {" "}· Built for the Stacks ecosystem · Open source
-          </p>
+    <footer className="border-t border-line py-10">
+      <div className="max-w-7xl mx-auto px-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <span className="text-xs text-muted">
+          ClarityForge — Funded by{" "}
+          <a
+            href="https://zeroauthoritydao.com/funding/degrants"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-text hover:text-muted transition-colors"
+          >
+            Stacks DeGrants
+          </a>
+        </span>
+        <div className="flex items-center gap-6 text-xs text-muted">
+          <Link href="/demo" className="hover:text-text transition-colors">Demo</Link>
+          <Link href="/templates" className="hover:text-text transition-colors">Templates</Link>
+          <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-text transition-colors">GitHub</a>
         </div>
       </div>
     </footer>

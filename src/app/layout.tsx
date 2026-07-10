@@ -15,16 +15,13 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClarityForge — The Visual IDE for Stacks",
-  description:
-    "A browser-based IDE for Clarity smart contracts. Build, simulate, and deploy directly to the Stacks blockchain — no CLI required.",
+  title: "ClarityForge — Browser IDE for Stacks",
+  description: "Write, simulate, and deploy Clarity contracts in your browser.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${dmMono.variable} scroll-smooth`}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${dmMono.variable}`}>
       <body className="bg-bg text-text antialiased">{children}</body>
     </html>
   );
