@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { analyze } from "@/lib/clarity/analyzer";
 
 const MAX_CODE_LENGTH = 100_000;
-const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:3456"];
+const ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "http://localhost:3456",
+  "https://clarityforge-sigma.vercel.app",
+  "https://clarityforge.vercel.app",
+];
 
 function generateTxHash(): string {
   const hex = Array.from({ length: 64 }, () =>
@@ -14,15 +19,9 @@ function generateTxHash(): string {
 function generateContractId(template: string): string {
   const suffix = Math.random().toString(36).substring(2, 6);
   return `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.${template}-${suffix}`;
-const ALLOWED_ORIGINS = [
-  "http://localhost:3000",
-  "http://localhost:3456",
-  "https://clarityforge-sigma.vercel.app",
-  "https://clarityforge.vercel.app",
-];
+}
 
 export async function POST(req: NextRequest) {
-  // Origin check
   const origin = req.headers.get("origin") ?? "";
   const isAllowed = ALLOWED_ORIGINS.some((o) => origin === o)
     || process.env.NODE_ENV === "development"
@@ -32,13 +31,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Origin not allowed" }, { status: 403 });
   }
 
-  // Content-Type
   const contentType = req.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {
     return NextResponse.json({ error: "Expected JSON" }, { status: 415 });
   }
 
-  // Parse
   let body: { code?: string };
   try {
     body = await req.json();
@@ -54,7 +51,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Code exceeds maximum length" }, { status: 413 });
   }
 
-  // Validate before "deploying"
   const result = analyze(body.code);
 
   if (!result.valid) {
@@ -64,12 +60,10 @@ export async function POST(req: NextRequest) {
     }, { status: 422 });
   }
 
-  // Detect contract type for naming
   const tokenDef = result.definitions.find((d) => d.type === "fungible-token");
   const nftDef = result.definitions.find((d) => d.type === "non-fungible-token");
   const contractName = tokenDef?.name ?? nftDef?.name ?? "contract";
 
-  // Simulate deployment
   const txHash = generateTxHash();
   const contractId = generateContractId(contractName);
 
