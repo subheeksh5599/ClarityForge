@@ -39,6 +39,8 @@ function DemoContent() {
   const [execResult, setExecResult] = useState<ExecutionResult | null>(null);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [splitRatio, setSplitRatio] = useState(60);
+  const [renamingFile, setRenamingFile] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const dragRef = { current: false };
 
   const switchTemplate = (t: Template) => {
@@ -57,9 +59,23 @@ function DemoContent() {
   };
 
   const addNewFile = () => {
-    const f: FileTab = { id: nextFileId(), name: "untitled.clar", code: ";; New Clarity contract\n" };
+    const name = window.prompt("File name:", "untitled.clar");
+    if (!name) return;
+    const f: FileTab = { id: nextFileId(), name: name.endsWith(".clar") ? name : `${name}.clar`, code: ";; New Clarity contract\n" };
     setFiles((prev) => [...prev, f]);
     setActiveFileId(f.id);
+  };
+
+  const startRename = (f: FileTab) => {
+    setRenamingFile(f.id);
+    setRenameValue(f.name);
+  };
+
+  const commitRename = () => {
+    if (!renamingFile || !renameValue.trim()) { setRenamingFile(null); return; }
+    const name = renameValue.endsWith(".clar") ? renameValue : `${renameValue}.clar`;
+    setFiles((prev) => prev.map((f) => f.id === renamingFile ? { ...f, name } : f));
+    setRenamingFile(null);
   };
 
   const handleRun = async () => {
@@ -108,13 +124,26 @@ function DemoContent() {
           {files.map((f) => (
             <button
               key={f.id}
-              onClick={() => setActiveFileId(f.id)}
+              onClick={() => { if (renamingFile !== f.id) setActiveFileId(f.id); }}
+              onDoubleClick={() => startRename(f)}
               className={`group flex items-center gap-1.5 px-3 py-2 text-[11px] font-mono border-r border-line transition-colors shrink-0 ${
                 f.id === activeFileId ? "text-text bg-[#0A0A0B] border-b border-b-[#0A0A0B] -mb-px" : "text-muted hover:text-text"
               }`}
             >
-              {f.name}
-              {files.length > 1 && (
+              {renamingFile === f.id ? (
+                <input
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingFile(null); }}
+                  className="bg-[#0A0A0B] text-text text-[11px] font-mono outline-none border border-text/20 px-1 py-0 w-32"
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                f.name
+              )}
+              {files.length > 1 && renamingFile !== f.id && (
                 <span onClick={(e) => { e.stopPropagation(); closeFile(f.id); }}
                   className="text-muted hover:text-text ml-0.5">×</span>
               )}
