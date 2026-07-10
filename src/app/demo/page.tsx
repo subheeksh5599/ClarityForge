@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Nav from "../../components/Nav";
 import Footer from "../../components/Footer";
+import StateVisualizer from "../../components/StateVisualizer";
 import { TEMPLATES, getTemplate, Template } from "../../lib/clarity/templates";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
@@ -18,6 +19,8 @@ function DemoContent() {
   );
   const [code, setCode] = useState(template.code);
   const [output, setOutput] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<Record<string, unknown> | null>(null);
+  const [viewMode, setViewMode] = useState<"text" | "visual">("visual");
   const [running, setRunning] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -48,6 +51,7 @@ function DemoContent() {
       }
 
       const data = await res.json();
+      setAnalysisResult(data);
       const lines: string[] = [];
 
       lines.push(data.valid ? "✓ Contract analysis complete" : "✗ Contract has errors");
@@ -243,27 +247,58 @@ function DemoContent() {
                 />
               </div>
 
-              <div className="h-[520px] bg-[#080809] p-8 overflow-auto">
-                {output || txHash ? (
-                  <div>
-                    {txHash && (
-                      <div className="mb-6 pb-6 border-b border-line">
-                        <p className="text-xs text-muted font-mono uppercase tracking-wider mb-1">Deployed</p>
-                        <p className="font-mono text-xs text-text break-all">{txHash}</p>
-                      </div>
-                    )}
-                    <pre className="font-mono text-sm text-text/80 leading-relaxed whitespace-pre-wrap">
-                      {output}
-                    </pre>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-muted text-sm">
-                      Click <span className="text-text">Run</span> to analyze or{" "}
-                      <span className="text-text">Deploy</span> to testnet
-                    </p>
-                  </div>
-                )}
+              <div className="h-[520px] bg-[#080809] flex flex-col">
+                {/* Tabs */}
+                <div className="flex items-center gap-1 px-5 py-2 border-b border-line shrink-0">
+                  <button
+                    onClick={() => setViewMode("visual")}
+                    className={`px-3 py-1 text-xs font-mono transition-colors ${
+                      viewMode === "visual" ? "text-text" : "text-muted hover:text-text"
+                    }`}
+                  >
+                    Visual
+                  </button>
+                  <button
+                    onClick={() => setViewMode("text")}
+                    className={`px-3 py-1 text-xs font-mono transition-colors ${
+                      viewMode === "text" ? "text-text" : "text-muted hover:text-text"
+                    }`}
+                  >
+                    Text
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 p-8 overflow-auto">
+                  {output || txHash ? (
+                    <div>
+                      {txHash && (
+                        <div className="mb-6 pb-6 border-b border-line">
+                          <p className="text-xs text-muted font-mono uppercase tracking-wider mb-1">Deployed</p>
+                          <p className="font-mono text-xs text-text break-all">{txHash}</p>
+                        </div>
+                      )}
+
+                      {viewMode === "visual" && analysisResult && !txHash ? (
+                        <StateVisualizer
+                          result={analysisResult as unknown as import("../../lib/clarity/analyzer").AnalysisResult}
+                          costEstimate={(analysisResult as Record<string, unknown>).costEstimate as number | undefined}
+                        />
+                      ) : (
+                        <pre className="font-mono text-sm text-text/80 leading-relaxed whitespace-pre-wrap">
+                          {output}
+                        </pre>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-muted text-sm">
+                        Click <span className="text-text">Run</span> to analyze or{" "}
+                        <span className="text-text">Deploy</span> to testnet
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
