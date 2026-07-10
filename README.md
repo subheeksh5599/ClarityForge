@@ -2,7 +2,6 @@
   <img src="https://img.shields.io/badge/Stacks-5546FF?style=for-the-badge&logo=stacks&logoColor=white" alt="Stacks">
   <img src="https://img.shields.io/badge/Clarity-Smart_Contracts-5546FF?style=for-the-badge" alt="Clarity">
   <img src="https://img.shields.io/badge/License-MIT-0C0C0D?style=for-the-badge" alt="License">
-  <img src="https://img.shields.io/badge/Applying_for-DeGrants-5546FF?style=for-the-badge" alt="DeGrants">
 </p>
 
 <p align="center">
@@ -17,7 +16,7 @@
 <h3 align="center"><em>The Remix of Stacks.<br>Write Clarity. In your browser. No CLI.</em></h3>
 
 <p align="center">
-  <strong>Browser-based IDE for Clarity smart contracts.<br>Real tokenizer + AST analyzer + state visualizer + one-click deploy.<br>Applying for Stacks Community DeGrants.</strong>
+  <strong>Browser-based IDE for Clarity smart contracts.<br>Real tokenizer + AST analyzer + state visualizer + one-click deploy.</strong>
 </p>
 
 <p align="center">
@@ -27,8 +26,7 @@
   <a href="#features">Features</a> &bull;
   <a href="#how-it-works">How It Works</a> &bull;
   <a href="#architecture">Architecture</a> &bull;
-  <a href="#faq">FAQ</a> &bull;
-  <a href="#degrant-application">DeGrants</a>
+  <a href="#faq">FAQ</a>
 </p>
 
 ---
@@ -71,9 +69,7 @@ Browser Tab ──> Monaco Editor ──> Clarity Analyzer ──> Visual Breakd
 
 ---
 
-## Why This Wins DeGrants
-
-### The Remix/Hardhat analogy
+## The Remix/Hardhat Analogy
 
 | | Ethereum | Stacks |
 |---|---|---|
@@ -295,30 +291,3 @@ Yes. Edit `src/lib/clarity/templates.ts` and add entries following the `Template
 </details>
 
 ---
-
-## DeGrants Application
-
-### Program fit
-
-DeGrants funds small, practical projects that strengthen Stacks through education, tooling, public goods, and community engagement.
-
-| DeGrants criteria | ClarityForge alignment |
-|---|---|
-| **Clear relevance to Stacks** | Built entirely for the Clarity/Stacks developer ecosystem |
-| **Community or ecosystem value** | Removes the single biggest onboarding barrier — CLI setup |
-| **Defined deliverables** | Browser editor, analysis engine, 6 templates, deploy simulation, visualizer |
-| **Feasible scope & timeline** | All agents built (A–E). Demo live. 8-week delivery window |
-| **Credible ability to execute** | Working prototype with real analysis, not mockups |
-| **Public goods contribution** | Open source (MIT), no monetization, feeds developers into Clarinet |
-
-### Award requested
-
-$5,000 — the maximum DeGrants award.
-
-### Why we should be selected
-
-ClarityForge fills the single biggest gap in the Stacks developer toolchain. Ethereum has had Remix since 2016. Stacks still requires every new developer to install a CLI before writing their first line of Clarity. We've built the Remix of Stacks. The demo is live. The analysis is real. The templates are comprehensive.
-
----
-
-**Built for Stacks. Applying for DeGrants.**
