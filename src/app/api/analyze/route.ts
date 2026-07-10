@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { analyze, analyzeCost } from "@/lib/clarity/analyzer";
 
 const MAX_CODE_LENGTH = 100_000; // 100KB
-const ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:3456"];
+const ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "http://localhost:3456",
+  "https://clarityforge-sigma.vercel.app",
+  "https://clarityforge.vercel.app",
+];
 
 export async function POST(req: NextRequest) {
   // Origin check (CSRF protection)
   const origin = req.headers.get("origin") ?? "";
-  const isAllowed = ALLOWED_ORIGINS.some((o) => origin.startsWith(o))
+  const isAllowed = ALLOWED_ORIGINS.some((o) => origin === o)
     || process.env.NODE_ENV === "development"
     || origin === ""; // same-origin requests
 

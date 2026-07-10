@@ -14,12 +14,17 @@ function generateTxHash(): string {
 function generateContractId(template: string): string {
   const suffix = Math.random().toString(36).substring(2, 6);
   return `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.${template}-${suffix}`;
-}
+const ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "http://localhost:3456",
+  "https://clarityforge-sigma.vercel.app",
+  "https://clarityforge.vercel.app",
+];
 
 export async function POST(req: NextRequest) {
   // Origin check
   const origin = req.headers.get("origin") ?? "";
-  const isAllowed = ALLOWED_ORIGINS.some((o) => origin.startsWith(o))
+  const isAllowed = ALLOWED_ORIGINS.some((o) => origin === o)
     || process.env.NODE_ENV === "development"
     || origin === "";
 
