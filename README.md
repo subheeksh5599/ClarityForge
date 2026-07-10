@@ -1,13 +1,13 @@
 # ClarityForge
 
-A browser-based IDE for Clarity smart contracts on the Stacks blockchain. Write, simulate, and deploy — no CLI required.
+Browser-based IDE for Clarity smart contracts on Stacks. Write, simulate, deploy — no CLI.
 
 ## Features
 
-- **Browser editor** — Syntax highlighting, autocomplete, and real-time diagnostics for Clarity
-- **Live simulation** — Execute contracts in-browser and inspect results instantly
-- **Template library** — Production-ready templates for tokens, NFTs, DAOs, AMMs, staking, and multi-sig wallets
-- **One-click deploy** — Connect your wallet and deploy to Stacks testnet without touching a terminal
+- Browser editor with syntax highlighting and autocomplete
+- Live in-browser contract simulation
+- Template library (tokens, NFTs, DAOs, AMMs, staking, multi-sig)
+- One-click testnet deployment with wallet integration
 
 ## Getting Started
 
@@ -18,27 +18,21 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Tech Stack
+## Stack
 
-| Layer | Technology |
-|---|---|
-| Framework | Next.js 16 |
-| Styling | Tailwind CSS 4 |
-| Editor | Monaco Editor |
-| Animation | GSAP ScrollTrigger |
-| Language | TypeScript |
+Next.js 16 · Tailwind CSS 4 · Monaco Editor · GSAP · TypeScript
 
 ## Pages
 
-- `/` — Landing page
+- `/` — Landing
 - `/demo` — Interactive editor with live simulation
 - `/templates` — Contract template gallery
 
-## Funding
+## DeGrants
 
-ClarityForge is funded by [Stacks DeGrants](https://zeroauthoritydao.com/funding/degrants), a community-led microgrant program supported by the Stacks Endowment.
+ClarityForge is applying for [Stacks DeGrants](https://zeroauthoritydao.com/funding/degrants), a community-led microgrant program supported by the Stacks Endowment.
 
 ## License
 
