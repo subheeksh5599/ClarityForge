@@ -1,80 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Nav from "../../components/Nav";
 import Footer from "../../components/Footer";
+import { TEMPLATES, getTemplate, Template } from "../../lib/clarity/templates";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
-const TEMPLATES: Record<string, string> = {
-  token: `;; SIP-010 Fungible Token
-;; Deploy your first token
+function DemoContent() {
+  const searchParams = useSearchParams();
+  const initialSlug = searchParams.get("template") ?? "token";
 
-(define-fungible-token my-token u1000000)
-
-(define-public (transfer (amount uint) (recipient principal))
-  (begin
-    (try! (ft-transfer? my-token amount tx-sender recipient))
-    (ok true)))
-
-(define-read-only (get-balance (who principal))
-  (ok (ft-get-balance my-token who)))`,
-
-  nft: `;; SIP-009 NFT Collection
-;; Mint unique digital assets
-
-(define-non-fungible-token nft-collection)
-
-(define-data-var last-id uint u0)
-
-(define-public (mint (recipient principal))
-  (let ((new-id (+ (var-get last-id) u1)))
-    (var-set last-id new-id)
-    (try! (nft-mint? nft-collection new-id recipient))
-    (ok new-id)))`,
-
-  dao: `;; Simple DAO Governor
-;; Propose and vote on-chain
-
-(define-data-var proposal-count uint u0)
-
-(define-map proposals uint {
-  proposer: principal,
-  description: (string-utf8 256),
-  votes-for: uint,
-  votes-against: uint,
-  executed: bool
-})
-
-(define-public (propose (desc (string-utf8 256)))
-  (let ((id (+ (var-get proposal-count) u1)))
-    (var-set proposal-count id)
-    (map-set proposals id {
-      proposer: tx-sender,
-      description: desc,
-      votes-for: u0,
-      votes-against: u0,
-      executed: false
-    })
-    (ok id)))`,
-};
-
-export default function Demo() {
-  const [code, setCode] = useState(TEMPLATES.token);
-  const [template, setTemplate] = useState<"token" | "nft" | "dao">("token");
+  const [template, setTemplate] = useState<Template>(
+    () => getTemplate(initialSlug) ?? TEMPLATES[0]
+  );
+  const [code, setCode] = useState(template.code);
   const [output, setOutput] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [deploying, setDeploying] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
-  const switchTemplate = (k: "token" | "nft" | "dao") => {
-    setTemplate(k);
-    setCode(TEMPLATES[k]);
+  useEffect(() => {
+    setCode(template.code);
     setOutput(null);
-  };
+    setTxHash(null);
+  }, [template]);
 
   const handleRun = async () => {
     setRunning(true);
     setOutput(null);
+    setTxHash(null);
 
     try {
       const res = await fetch("/api/analyze", {
@@ -91,17 +48,12 @@ export default function Demo() {
       }
 
       const data = await res.json();
-
       const lines: string[] = [];
-      if (data.valid) {
-        lines.push("✓ Contract analysis complete");
-      } else {
-        lines.push("✗ Contract has errors");
-      }
+
+      lines.push(data.valid ? "✓ Contract analysis complete" : "✗ Contract has errors");
       lines.push("");
 
-      // Definitions
-      if (data.definitions && data.definitions.length > 0) {
+      if (data.definitions?.length) {
         lines.push("Defined:");
         for (const d of data.definitions) {
           const label =
@@ -119,7 +71,6 @@ export default function Demo() {
         lines.push("");
       }
 
-      // Stats
       if (data.stats) {
         lines.push(`Lines: ${data.stats.totalLines}`);
         lines.push(`Functions: ${data.stats.functions}`);
@@ -129,8 +80,7 @@ export default function Demo() {
         lines.push("");
       }
 
-      // Diagnostics
-      if (data.diagnostics && data.diagnostics.length > 0) {
+      if (data.diagnostics?.length) {
         for (const d of data.diagnostics) {
           const icon = d.severity === "error" ? "✗" : d.severity === "warning" ? "⚠" : "ℹ";
           lines.push(`${icon} Line ${d.line}: ${d.message}`);
@@ -138,7 +88,6 @@ export default function Demo() {
         lines.push("");
       }
 
-      // Cost
       if (data.costEstimate) {
         lines.push(`Cost estimate: ${data.costEstimate.toLocaleString()} microSTX`);
       }
@@ -156,7 +105,37 @@ export default function Demo() {
     setRunning(false);
   };
 
-  const labels: Record<string, string> = { token: "Token", nft: "NFT", dao: "DAO" };
+  const handleDeploy = async () => {
+    setDeploying(true);
+    setTxHash(null);
+
+    try {
+      const res = await fetch("/api/deploy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.txHash) {
+        setTxHash(data.txHash);
+        setOutput(
+          `✓ Contract deployed successfully\n\n` +
+            `Network: Stacks testnet\n` +
+            `Contract: ${data.contractId ?? "Pending..."}\n` +
+            `Transaction: ${data.txHash}\n\n` +
+            `→ View on explorer: https://explorer.hiro.so/txid/${data.txHash}`
+        );
+      } else {
+        setOutput(`✗ Deploy failed: ${data.error || "Unknown error"}`);
+      }
+    } catch (e) {
+      setOutput(`✗ Deploy failed: ${e instanceof Error ? e.message : "Unknown error"}`);
+    }
+
+    setDeploying(false);
+  };
 
   return (
     <>
@@ -169,32 +148,45 @@ export default function Demo() {
 
           <div className="border border-line rounded-sm overflow-hidden bg-[#0A0A0B]">
             <div className="flex items-center justify-between px-5 h-12 border-b border-line">
-              <div className="flex items-center">
-                {(Object.keys(TEMPLATES) as Array<"token" | "nft" | "dao">).map((k) => (
+              <div className="flex items-center overflow-x-auto">
+                {TEMPLATES.map((t) => (
                   <button
-                    key={k}
-                    onClick={() => switchTemplate(k as "token" | "nft" | "dao")}
-                    className={`px-4 py-3 text-xs font-mono transition-colors border-b-2 -mb-px ${
-                      template === k
+                    key={t.slug}
+                    onClick={() => setTemplate(t)}
+                    className={`px-4 py-3 text-xs font-mono whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                      template.slug === t.slug
                         ? "text-text border-text"
                         : "text-muted border-transparent hover:text-text"
                     }`}
                   >
-                    {labels[k]}
+                    {t.name}
                   </button>
                 ))}
               </div>
-              <button
-                onClick={handleRun}
-                disabled={running}
-                className={`flex items-center gap-2 px-5 py-1.5 text-xs font-medium transition-colors ${
-                  running
-                    ? "text-muted cursor-wait"
-                    : "text-bg bg-text hover:bg-text/90"
-                }`}
-              >
-                ▶ {running ? "Running…" : "Run"}
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleRun}
+                  disabled={running}
+                  className={`flex items-center gap-2 px-5 py-1.5 text-xs font-medium transition-colors ${
+                    running
+                      ? "text-muted cursor-wait"
+                      : "text-bg bg-text hover:bg-text/90"
+                  }`}
+                >
+                  ▶ {running ? "Running…" : "Run"}
+                </button>
+                <button
+                  onClick={handleDeploy}
+                  disabled={deploying}
+                  className={`flex items-center gap-2 px-5 py-1.5 text-xs font-medium transition-colors border border-line ${
+                    deploying
+                      ? "text-muted cursor-wait"
+                      : "text-text hover:bg-text/5"
+                  }`}
+                >
+                  ↑ {deploying ? "Deploying…" : "Deploy"}
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-line">
@@ -252,14 +244,23 @@ export default function Demo() {
               </div>
 
               <div className="h-[520px] bg-[#080809] p-8 overflow-auto">
-                {output ? (
-                  <pre className="font-mono text-sm text-text/80 leading-relaxed whitespace-pre-wrap">
-                    {output}
-                  </pre>
+                {output || txHash ? (
+                  <div>
+                    {txHash && (
+                      <div className="mb-6 pb-6 border-b border-line">
+                        <p className="text-xs text-muted font-mono uppercase tracking-wider mb-1">Deployed</p>
+                        <p className="font-mono text-xs text-text break-all">{txHash}</p>
+                      </div>
+                    )}
+                    <pre className="font-mono text-sm text-text/80 leading-relaxed whitespace-pre-wrap">
+                      {output}
+                    </pre>
+                  </div>
                 ) : (
                   <div className="flex items-center justify-center h-full">
                     <p className="text-muted text-sm">
-                      Click <span className="text-text">Run</span> to simulate your contract
+                      Click <span className="text-text">Run</span> to analyze or{" "}
+                      <span className="text-text">Deploy</span> to testnet
                     </p>
                   </div>
                 )}
@@ -270,5 +271,17 @@ export default function Demo() {
       </main>
       <Footer />
     </>
+  );
+}
+
+export default function Demo() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center text-muted text-sm">
+        Loading…
+      </div>
+    }>
+      <DemoContent />
+    </Suspense>
   );
 }

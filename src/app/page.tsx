@@ -174,17 +174,17 @@ export default function Home() {
 
             <div data-fade className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-line">
               {[
-                ["SIP-010 Token", "Fungible token standard"],
-                ["SIP-009 NFT", "Digital collectibles"],
-                ["DAO Governor", "On-chain governance"],
-                ["AMM Pool", "Liquidity pools & swaps"],
-                ["Staking", "Lock tokens, earn rewards"],
-                ["Multi-Sig", "Shared treasury custody"],
-              ].map(([name, desc]) => (
-                <div key={name} className="bg-bg p-8 hover:bg-text/[0.02] transition-colors cursor-pointer">
+                ["token", "SIP-010 Token", "Fungible token standard"],
+                ["nft", "SIP-009 NFT", "Digital collectibles"],
+                ["dao", "DAO Governor", "On-chain governance"],
+                ["amm", "AMM Pool", "Liquidity pools & swaps"],
+                ["staking", "Staking", "Lock tokens, earn rewards"],
+                ["multisig", "Multi-Sig", "Shared treasury custody"],
+              ].map(([slug, name, desc]) => (
+                <Link key={slug} href={`/demo?template=${slug}`} className="bg-bg p-8 hover:bg-text/[0.02] transition-colors cursor-pointer block">
                   <h3 className="text-lg font-bold mb-1.5">{name}</h3>
                   <p className="text-sm text-muted">{desc}</p>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
