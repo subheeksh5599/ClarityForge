@@ -60,8 +60,9 @@ export default function Home() {
             </h1>
 
             <p className="hero-enter text-lg sm:text-xl text-muted max-w-lg mt-10 leading-relaxed">
-              ClarityForge brings Clarity development to the browser.
-              Write, simulate, and deploy — no CLI, no setup, no waiting.
+              The Remix of Stacks. Write, simulate, and deploy Clarity contracts
+              in your browser. No CLI, no setup. Graduate to Clarinet when
+              you&apos;re ready for production.
             </p>
 
             <div className="hero-enter flex items-center gap-6 mt-12">

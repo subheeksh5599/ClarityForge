@@ -15,8 +15,9 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClarityForge — Browser IDE for Stacks",
-  description: "Write, simulate, and deploy Clarity contracts in your browser.",
+  title: "ClarityForge — The Remix of Stacks",
+  description:
+    "Browser-based IDE for Clarity smart contracts. Write, simulate, and deploy on Stacks — no CLI required. The Remix of Stacks.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
