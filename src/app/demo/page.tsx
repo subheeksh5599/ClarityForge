@@ -125,11 +125,14 @@ function DemoContent() {
       if (res.ok && data.txHash) {
         setTxHash(data.txHash);
         setOutput(
-          `✓ Contract deployed successfully\n\n` +
+          `✓ Deployment simulated successfully\n\n` +
+            `This is a simulation — real deployment requires wallet\n` +
+            `integration (planned for Phase 2).\n\n` +
             `Network: Stacks testnet\n` +
-            `Contract: ${data.contractId ?? "Pending..."}\n` +
-            `Transaction: ${data.txHash}\n\n` +
-            `→ View on explorer: https://explorer.hiro.so/txid/${data.txHash}`
+            `Contract: ${data.contractId ?? "N/A"}\n` +
+            `Simulated tx: ${data.txHash.slice(0, 20)}...\n\n` +
+            `→ Ready for real deployment when wallet\n` +
+            `   integration is complete`
         );
       } else {
         setOutput(`✗ Deploy failed: ${data.error || "Unknown error"}`);
@@ -274,8 +277,8 @@ function DemoContent() {
                     <div>
                       {txHash && (
                         <div className="mb-6 pb-6 border-b border-line">
-                          <p className="text-xs text-muted font-mono uppercase tracking-wider mb-1">Deployed</p>
-                          <p className="font-mono text-xs text-text break-all">{txHash}</p>
+                          <p className="text-xs text-muted font-mono uppercase tracking-wider mb-1">Simulation</p>
+                          <p className="font-mono text-xs text-muted">Ready for Phase 2 (wallet integration)</p>
                         </div>
                       )}
 
