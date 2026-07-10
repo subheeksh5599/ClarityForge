@@ -29,6 +29,8 @@ function DemoContent() {
   const [fnParams, setFnParams] = useState<string[]>([]);
   const [execResult, setExecResult] = useState<ExecutionResult | null>(null);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [splitRatio, setSplitRatio] = useState(60);
+  const dragRef = { current: false };
 
   useEffect(() => {
     setCode(template.code);
@@ -80,8 +82,24 @@ function DemoContent() {
 
   const switchTemplate = (t: Template) => { setTemplate(t); setViewMode("visual"); };
 
+  const handleMouseDown = () => { dragRef.current = true; };
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragRef.current) return;
+      const container = document.getElementById("ide-container");
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const pct = ((e.clientX - rect.left) / rect.width) * 100;
+      setSplitRatio(Math.min(85, Math.max(25, pct)));
+    };
+    const handleMouseUp = () => { dragRef.current = false; };
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => { window.removeEventListener("mousemove", handleMouseMove); window.removeEventListener("mouseup", handleMouseUp); };
+  }, []);
+
   return (
-    <div className="h-svh flex flex-col bg-[#0A0A0B]">
+    <div className="h-svh flex flex-col bg-[#0A0A0B] pt-16">
       <Nav />
 
       {/* Toolbar */}
@@ -118,9 +136,9 @@ function DemoContent() {
       </div>
 
       {/* Main IDE area */}
-      <div className="flex-1 flex min-h-0">
+      <div id="ide-container" className="flex-1 flex min-h-0">
         {/* Editor */}
-        <div className={`${rightPanelOpen ? "w-1/2 lg:w-3/5" : "flex-1"} transition-[width] duration-200`}>
+        <div style={{ width: rightPanelOpen ? `${splitRatio}%` : "100%" }} className="transition-[width] duration-75">
           <MonacoEditor
             language="rust"
             theme="clarityforge"
@@ -171,9 +189,20 @@ function DemoContent() {
           />
         </div>
 
+        {/* Resize handle */}
+        {rightPanelOpen && (
+          <div
+            onMouseDown={handleMouseDown}
+            className="w-1.5 shrink-0 bg-line hover:bg-text/20 cursor-col-resize transition-colors active:bg-text/30 relative group"
+          >
+            <div className="absolute inset-y-0 -left-1 -right-1" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-8 rounded-full bg-text/0 group-hover:bg-text/10 transition-colors" />
+          </div>
+        )}
+
         {/* Right panel */}
         {rightPanelOpen && (
-          <div className="w-1/2 lg:w-2/5 border-l border-line flex flex-col min-h-0 bg-[#080809]">
+          <div style={{ width: `${100 - splitRatio}%` }} className="border-l border-line flex flex-col min-h-0 bg-[#080809]">
             {/* Tabs */}
             <div className="flex items-center border-b border-line shrink-0 px-2">
               {(["visual", "interact", "text"] as const).map((mode) => (
