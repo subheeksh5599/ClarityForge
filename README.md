@@ -212,15 +212,51 @@ src/
 
 ---
 
+## The Browser VM (like Remix VM)
+
+ClarityForge has a built-in stateful simulator — like Remix VM for Ethereum. It runs entirely in your browser with no chain, no wallet, and no backend.
+
+```
+┌──────────────────────────────────┐
+│         ClarityForge VM          │
+│                                  │
+│  5 test accounts (100 STX each)  │
+│  Stateful storage across calls   │
+│  Token balances, data-vars, maps │
+│  Transfer → balance → verify     │
+│                                  │
+│  Runs in your browser — no setup │
+└──────────────────────────────────┘
+```
+
+**What you can do:**
+- Open a template (e.g. SIP-010 Token) and hit **Run** — the VM initializes the token with 1M supply on Account 1
+- Switch to the **Interact** tab, select `transfer`, enter `u100` and Account 2's address, click Execute — the balance transfers
+- Switch to `get-balance` and see the updated balance — the VM remembers state across calls
+- Same works for NFTs (mint → check owner), DAOs (propose → vote), staking (stake → unstake), multi-sig (propose → sign)
+
+**How it works under the hood:**
+The VM reads your contract's structure (tokens, data-vars, maps, functions) and initializes a simulated state. Each function call reads from and writes to that state. It's not the full Clarity runtime — for that, graduate to Clarinet. But it's enough to prototype and understand your contract's behavior before deploying for real.
+
+**Three environments, like Remix:**
+
+| Environment | What it does | When to use |
+|------------|-------------|------------|
+| **VM** (default) | Browser simulator, stateful, no setup | Learning, prototyping, experimenting |
+| **Clarinet** | Runs `clarinet check` locally if installed | Validating syntax against the real VM |
+| **Deploy** | Wallet-connected testnet deployment via Leather/Xverse | Going live, sharing with others |
+
+---
+
 ## Current Limitations
 
-We want to be honest about what this project does and doesn't do. It's a prototype, and there are known gaps:
+We want to be honest about what this project does and doesn't do. It's improving rapidly, but here's what you should know:
 
-1. **No real execution** — We do static analysis only. We can't run your contract against chain state. For that, use Clarinet's console/VM.
+1. **The VM is a simulator, not the Clarity runtime** — It handles common patterns (transfers, mints, proposals, staking) but doesn't execute arbitrary Clarity code. For full execution, use Clarinet's VM.
 
-2. **Deploy is simulated** — The deploy endpoint generates realistic-looking hashes but doesn't broadcast to any network. Real wallet-connected deployment (Leather/Xverse) is not yet implemented.
+2. **Deploy requires a wallet** — Real testnet deployment works via Leather or Xverse. Without a wallet connected, deploy generates a realistic simulation.
 
-3. **No persistent storage** — Contracts you write live only in the browser tab. There's no backend, no database, no user accounts. Refresh the page and unsaved work is gone.
+3. **No persistent backend** — Contracts save to your browser's localStorage (survive refreshes), but there's no server-side storage or sharing yet.
 
 4. **No test framework** — You can't write or run tests in the browser. Clarinet's test harness remains the right tool for that.
 
