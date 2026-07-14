@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, DM_Mono } from "next/font/google";
-import { ThemeProvider } from "@/components/ThemeProvider";
-import { WalletProvider } from "@/components/WalletProvider";
+import ClientProviders from "@/components/ClientProviders";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -17,19 +16,19 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClarityForge — The Remix of Stacks",
+  title: "ClarityForge — Browser IDE for Clarity",
   description:
-    "Browser-based IDE for Clarity smart contracts. Write, simulate, and deploy on Stacks — no CLI required. The Remix of Stacks.",
+    "Browser-based IDE for Clarity smart contracts. Write, simulate, and deploy on Stacks — no CLI required.",
   openGraph: {
-    title: "ClarityForge — The Remix of Stacks",
+    title: "ClarityForge — Browser IDE for Clarity",
     description: "Browser-based IDE for Clarity smart contracts. Write, simulate, and deploy on Stacks.",
     url: "https://clarityforge.vercel.app",
     images: [{ url: "/og", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "ClarityForge — The Remix of Stacks",
-    description: "Browser-based IDE for Clarity smart contracts. The Remix of Stacks.",
+    title: "ClarityForge — Browser IDE for Clarity",
+    description: "Browser-based IDE for Clarity smart contracts.",
     images: ["/og"],
   },
 };
@@ -38,9 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${dmMono.variable}`}>
       <body className="bg-bg text-text antialiased">
-        <ThemeProvider>
-          <WalletProvider>{children}</WalletProvider>
-        </ThemeProvider>
+        <ClientProviders>{children}</ClientProviders>
       </body>
     </html>
   );
