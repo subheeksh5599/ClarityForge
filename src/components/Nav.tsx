@@ -26,6 +26,14 @@ export default function Nav() {
           >
             Templates
           </Link>
+          <Link
+            href="/demo"
+            className={`text-sm transition-colors ${
+              pathname === "/demo" ? "text-text" : "text-muted hover:text-text"
+            }`}
+          >
+            Editor
+          </Link>
           <button
             onClick={toggleTheme}
             className="text-sm text-muted hover:text-text transition-colors"
@@ -34,16 +42,21 @@ export default function Nav() {
             {theme === "dark" ? "☀" : "☾"}
           </button>
           {wallet.connected ? (
-            <span className="text-xs text-muted font-mono" title={wallet.address || ""}>
-              ◉ {wallet.address?.slice(0, 8)}…
-            </span>
-          ) : (
-            <Link
-              href="/demo"
-              className="text-sm text-text hover:text-muted transition-colors"
+            <button
+              onClick={wallet.disconnectWallet}
+              className="text-xs text-text font-mono border border-line px-2.5 py-1 rounded-sm hover:bg-text/5 transition-colors"
+              title="Click to disconnect"
             >
-              Try it →
-            </Link>
+              ◉ {wallet.address?.slice(0, 10)}…
+            </button>
+          ) : (
+            <button
+              onClick={wallet.connectWallet}
+              disabled={wallet.connecting}
+              className="text-xs font-medium text-bg bg-text hover:bg-text/90 px-3 py-1 transition-colors disabled:opacity-50"
+            >
+              {wallet.connecting ? "Connecting…" : "Connect Wallet"}
+            </button>
           )}
         </div>
       </div>
