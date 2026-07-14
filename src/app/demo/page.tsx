@@ -59,6 +59,26 @@ function DemoContent() {
   const wallet = useWallet();
   const { theme } = useTheme();
 
+  // Render output with clickable links
+  const renderOutput = (text: string | null) => {
+    if (!text) return null;
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+    const matches = text.match(urlRegex) || [];
+    let matchIdx = 0;
+    return parts.map((part, i) => {
+      if (i % 2 === 0) return part;
+      const url = matches[matchIdx++];
+      return (
+        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+          className="text-text underline hover:text-text/70"
+          onClick={(e) => e.stopPropagation()}>
+          {url}
+        </a>
+      );
+    });
+  };
+
   // ── VM state (Remix-style) ──
   const vmStateRef = useRef<VmState>(createVmState());
   const [selectedAccount, setSelectedAccount] = useState(vmStateRef.current.accounts[0].address);
@@ -320,8 +340,21 @@ function DemoContent() {
           network: "testnet",
         });
         if (result.txid) {
+          const deployerAddr = wallet.address || "ST1...";
+          const contractId = `${deployerAddr}.${contractName}`;
+          const txLink = `https://explorer.hiro.so/txid/${result.txid}?chain=testnet`;
+          const contractLink = `https://explorer.hiro.so/address/${contractId}?chain=testnet`;
+          
           setTxHash(result.txid);
-          setOutput(`✓ Contract deployed!\\n\\nNetwork: Stacks testnet\\nTxID: ${result.txid}\\n→ Check status on explorer`);
+          setOutput(
+            `✓ Contract deployed to testnet!\n\n` +
+            `Name: ${contractName}\n` +
+            `Contract: ${contractId}\n` +
+            `TxID: ${result.txid}\n\n` +
+            `→ Transaction: ${txLink}\n` +
+            `→ Contract: ${contractLink}\n\n` +
+            `(pending confirmation — may take a few minutes)`
+          );
         } else {
           setOutput("✓ Transaction sent (txid pending)");
         }
@@ -337,7 +370,17 @@ function DemoContent() {
     try {
       const res = await fetch("/api/deploy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
       const data = await res.json();
-      if (res.ok && data.txHash) { setTxHash(data.txHash); setOutput(`✓ Simulation complete\\n\\nNetwork: Stacks testnet\\nContract: ${data.contractId ?? "N/A"}\\n→ Connect wallet for real deployment`); }
+      if (res.ok && data.txHash) {
+        setTxHash(data.txHash);
+        const simContractId = data.contractId ?? "ST1...contract-name";
+        setOutput(
+          `✓ Simulation complete (testnet)\n\n` +
+          `Contract: ${simContractId}\n` +
+          `TxID: ${data.txHash}\n\n` +
+          `→ This is a simulated deployment for prototyping\n` +
+          `→ Connect wallet (Deploy mode) for real contract on testnet`
+        );
+      }
       else setOutput(`✗ ${data.error || "Deploy failed"}`);
     } catch (e) { setOutput(`✗ ${e instanceof Error ? e.message : "Error"}`); }
     setDeploying(false);
@@ -508,7 +551,7 @@ function DemoContent() {
                   ) : viewMode === "interact" && analysisResult ? (
                     <InteractPanel analysisResult={analysisResult} selectedFn={selectedFn} setSelectedFn={setSelectedFn} fnParams={fnParams} setFnParams={setFnParams} execResult={execResult} setExecResult={setExecResult} envMode={envMode} vmStateRef={vmStateRef} selectedAccount={selectedAccount} />
                   ) : (
-                    <pre className="font-mono text-xs text-text/80 leading-relaxed whitespace-pre-wrap">{output}</pre>
+                    <pre className="font-mono text-xs text-text/80 leading-relaxed whitespace-pre-wrap">{renderOutput(output)}</pre>
                   )}
                 </div>
               ) : (
