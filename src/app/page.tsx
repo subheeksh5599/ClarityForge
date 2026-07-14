@@ -1,49 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Link from "next/link";
 import Nav from "../components/Nav";
 import Footer from "../components/Footer";
 
-function useFadeIn() {
-  useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger);
-
-    document.querySelectorAll("[data-fade]").forEach((el) => {
-      gsap.fromTo(
-        el,
-        { autoAlpha: 0, y: 60 },
-        {
-          autoAlpha: 1,
-          y: 0,
-          duration: 1.2,
-          ease: "power3.out",
-          scrollTrigger: {
-            trigger: el,
-            start: "top 82%",
-            toggleActions: "play none none none",
-          },
-        }
-      );
-    });
-
-    return () => ScrollTrigger.getAll().forEach((t) => t.kill());
-  }, []);
-}
-
 export default function Home() {
-  useFadeIn();
-
-  useEffect(() => {
-    gsap.fromTo(
-      ".hero-enter",
-      { autoAlpha: 0, y: 60 },
-      { autoAlpha: 1, y: 0, duration: 1.2, stagger: 0.2, ease: "power3.out", delay: 0.4 }
-    );
-  }, []);
-
   return (
     <>
       <Nav />
@@ -52,20 +13,20 @@ export default function Home() {
         {/* HERO */}
         <section className="min-h-screen flex flex-col justify-center px-8 pt-16 pb-20">
           <div className="max-w-6xl mx-auto w-full">
-            <h1 className="hero-enter text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold leading-[0.96] tracking-[-0.04em] max-w-5xl">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold leading-[0.96] tracking-[-0.04em] max-w-5xl">
               Smart contracts
               <br />
               shouldn&apos;t need
               <br />a terminal.
             </h1>
 
-            <p className="hero-enter text-lg sm:text-xl text-muted max-w-lg mt-10 leading-relaxed">
-              The Remix of Stacks. Write, simulate, and deploy Clarity contracts
-              in your browser. No CLI, no setup. Graduate to Clarinet when
+            <p className="text-lg sm:text-xl text-muted max-w-lg mt-10 leading-relaxed">
+              A browser playground for Clarity. Write, simulate, and deploy
+              on Stacks — no CLI, no setup. Graduate to Clarinet when
               you&apos;re ready for production.
             </p>
 
-            <div className="hero-enter flex items-center gap-6 mt-12">
+            <div className="flex items-center gap-6 mt-12">
               <Link
                 href="/demo"
                 className="inline-flex items-center h-12 px-8 text-sm font-medium text-bg bg-text hover:bg-text/90 transition-colors"
@@ -85,11 +46,11 @@ export default function Home() {
         {/* FIG 1 — The Editor */}
         <section className="pb-36 px-8">
           <div className="max-w-6xl mx-auto">
-            <p data-fade className="text-xs text-muted font-mono tracking-[0.2em] uppercase mb-8">
+            <p className="text-xs text-muted font-mono tracking-[0.2em] uppercase mb-8">
               Fig 1 — The editor
             </p>
 
-            <div data-fade className="border border-line overflow-hidden bg-surface-alt">
+            <div className="border border-line overflow-hidden bg-surface-alt">
               <div className="flex items-center gap-2 px-6 h-12 border-b border-line">
                 <span className="w-3 h-3 rounded-full bg-text/15" />
                 <span className="w-3 h-3 rounded-full bg-text/15" />
@@ -144,17 +105,17 @@ export default function Home() {
         {/* FIG 2 — Write. Simulate. Deploy. */}
         <section className="pb-36 px-8">
           <div className="max-w-6xl mx-auto">
-            <p data-fade className="text-xs text-muted font-mono tracking-[0.2em] uppercase mb-16">
+            <p className="text-xs text-muted font-mono tracking-[0.2em] uppercase mb-16">
               Fig 2 — The workflow
             </p>
 
             <div className="space-y-24">
               {[
-                { step: "01", word: "Write", desc: "Open the browser. Start typing. Syntax highlighting and autocomplete guide you. No Clarinet. No config files." },
+                { step: "01", word: "Write", desc: "Open the browser. Start typing. Syntax highlighting and autocomplete guide you. No Clarinet. No config." },
                 { step: "02", word: "Simulate", desc: "Hit run. See execution results, storage changes, and event emissions instantly. No local node required." },
-                { step: "03", word: "Deploy", desc: "Connect your wallet. One click. Your contract is live on Stacks testnet." },
-              ].map((s, i) => (
-                <div key={s.step} data-fade className="group">
+                { step: "03", word: "Deploy", desc: "Connect your wallet. One click. Your contract is live on Stacks testnet with explorer links." },
+              ].map((s) => (
+                <div key={s.step} className="group">
                   <div className="text-xs text-muted/40 font-mono mb-4">{s.step}</div>
                   <h2 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-[-0.03em] mb-6 text-muted group-hover:text-text transition-colors duration-500">
                     {s.word}
@@ -169,11 +130,11 @@ export default function Home() {
         {/* FIG 3 — Templates */}
         <section className="pb-36 px-8">
           <div className="max-w-6xl mx-auto">
-            <p data-fade className="text-xs text-muted font-mono tracking-[0.2em] uppercase mb-8">
+            <p className="text-xs text-muted font-mono tracking-[0.2em] uppercase mb-8">
               Fig 3 — Templates
             </p>
 
-            <div data-fade className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-line">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-line">
               {[
                 ["token", "SIP-010 Token", "Fungible token standard"],
                 ["nft", "SIP-009 NFT", "Digital collectibles"],
@@ -194,11 +155,12 @@ export default function Home() {
         {/* CTA */}
         <section className="pb-40 px-8">
           <div className="max-w-6xl mx-auto">
-            <h2 data-fade className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.08] tracking-[-0.03em] max-w-4xl">
-              The Stacks ecosystem deserves
-              <br />a world-class IDE.
+            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.08] tracking-[-0.03em] max-w-4xl">
+              Try Clarity in your browser.
+              <br />
+              No setup, no CLI, no chain.
             </h2>
-            <div data-fade className="flex items-center gap-6 mt-12">
+            <div className="flex items-center gap-6 mt-12">
               <Link
                 href="/demo"
                 className="inline-flex items-center h-12 px-8 text-sm font-medium text-bg bg-text hover:bg-text/90 transition-colors"

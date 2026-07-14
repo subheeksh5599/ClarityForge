@@ -81,6 +81,8 @@ function DemoContent() {
 
   // ── VM state (Remix-style) ──
   const vmStateRef = useRef<VmState>(createVmState());
+  const [, forceUpdate] = useState(0); // trigger VM re-renders
+  const updateVmState = (s: VmState) => { vmStateRef.current = s; forceUpdate(v => v + 1); };
   const [selectedAccount, setSelectedAccount] = useState(vmStateRef.current.accounts[0].address);
   const [envMode, setEnvMode] = useState<"vm" | "clarinet" | "deploy">("vm");
   const [vmResult, setVmResult] = useState<VmResult | null>(null);
@@ -229,7 +231,7 @@ function DemoContent() {
           analysisResult.definitions
         );
         state.caller = selectedAccount;
-        vmStateRef.current = state;
+        updateVmState(state);
 
         if (!analysisResult.valid) {
           const l: string[] = ["✗ Analysis failed"];
@@ -246,7 +248,7 @@ function DemoContent() {
           const firstFn = fns[0];
           const defaultParams = getDefaultParams(firstFn);
           const result = executeInVm(firstFn, analysisResult.definitions, defaultParams, state);
-          vmStateRef.current = result.state;
+          updateVmState(result.state);
           setVmResult(result);
 
           const l: string[] = [];
@@ -317,15 +319,18 @@ function DemoContent() {
     setRunning(false);
   };
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts (uses ref to avoid stale closures)
+  const handleRunRef = useRef(handleRun);
+  handleRunRef.current = handleRun;
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); handleRun(); }
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); handleRun(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); handleRunRef.current(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); handleRunRef.current(); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [code]);
+  }, []);
 
   const handleDeploy = async () => {
     setDeploying(true); setTxHash(null);
@@ -549,13 +554,30 @@ function DemoContent() {
                   {viewMode === "visual" && analysisResult ? (
                     <StateVisualizer result={analysisResult as any} costEstimate={(analysisResult as any).costEstimate} sourceCode={code} />
                   ) : viewMode === "interact" && analysisResult ? (
-                    <InteractPanel analysisResult={analysisResult} selectedFn={selectedFn} setSelectedFn={setSelectedFn} fnParams={fnParams} setFnParams={setFnParams} execResult={execResult} setExecResult={setExecResult} envMode={envMode} vmStateRef={vmStateRef} selectedAccount={selectedAccount} />
+                    <InteractPanel analysisResult={analysisResult} selectedFn={selectedFn} setSelectedFn={setSelectedFn} fnParams={fnParams} setFnParams={setFnParams} execResult={execResult} setExecResult={setExecResult} envMode={envMode} vmStateRef={vmStateRef} selectedAccount={selectedAccount} onVmStateChange={updateVmState} />
                   ) : (
                     <pre className="font-mono text-xs text-text/80 leading-relaxed whitespace-pre-wrap">{renderOutput(output)}</pre>
                   )}
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-full"><p className="text-muted text-xs"><span className="text-text">Run</span> to analyze</p></div>
+                <div className="flex flex-col items-center justify-center h-full px-4">
+                  <p className="text-muted text-xs mb-4">
+                    <span className="text-text">{">"}</span> Pick a template or start typing
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
+                    {TEMPLATES.slice(0, 6).map((t) => (
+                      <button
+                        key={t.slug}
+                        onClick={() => switchTemplate(t)}
+                        className="text-left px-3 py-2 border border-line rounded-sm hover:bg-text/[0.03] transition-colors text-[11px]"
+                      >
+                        <span className="text-text font-mono block">{t.name}</span>
+                        <span className="text-muted/60 text-[10px]">{t.tag}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted/40 mt-4">or Ctrl+S to run current code</p>
+                </div>
               )}
             </div>
             {envMode === "vm" && (
@@ -565,6 +587,7 @@ function DemoContent() {
                 onSelectAccount={setSelectedAccount}
                 onRefresh={refreshAccounts}
                 loading={accountsLoading}
+                vmState={vmStateRef.current}
               />
             )}
           </div>
@@ -590,10 +613,11 @@ function DemoContent() {
   );
 }
 
-function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, setFnParams, execResult, setExecResult, envMode, vmStateRef, selectedAccount }: {
+function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, setFnParams, execResult, setExecResult, envMode, vmStateRef, selectedAccount, onVmStateChange }: {
   analysisResult: Record<string, unknown>; selectedFn: string; setSelectedFn: (v: string) => void;
   fnParams: string[]; setFnParams: (v: string[]) => void; execResult: ExecutionResult | null; setExecResult: (v: ExecutionResult | null) => void;
   envMode: string; vmStateRef: MutableRefObject<VmState>; selectedAccount: string;
+  onVmStateChange: (s: VmState) => void;
 }) {
   const defs = (analysisResult.definitions ?? []) as any[];
   const fns = getExecutableFunctions(defs);
@@ -616,7 +640,7 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
       const state = JSON.parse(JSON.stringify(vmStateRef.current));
       state.caller = selectedAccount;
       const result = executeInVm(fn, defs, fnParams, state);
-      vmStateRef.current = result.state;
+      onVmStateChange(result.state);
       // Convert VmResult to ExecutionResult format
       setExecResult({
         functionName: fn.name,
