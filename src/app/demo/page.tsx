@@ -545,7 +545,7 @@ function DemoContent() {
             <div className="flex-1 overflow-auto p-6">
               {output ? (
                 <div>
-                  {txHash && <div className="mb-4 pb-4 border-b border-line"><p className="text-[10px] text-muted font-mono uppercase tracking-wider mb-0.5">Deploy Simulation</p><p className="font-mono text-[10px] text-muted">Phase 2 — wallet integration</p></div>}
+                  {txHash && <div className="mb-4 pb-4 border-b border-line"><p className="text-[10px] text-muted font-mono uppercase tracking-wider mb-0.5">Deployment</p><p className="font-mono text-[10px] text-muted">{wallet.connected ? "Testnet via Leather/Xverse" : "Simulated"}</p></div>}
                   {viewMode === "visual" && analysisResult ? (
                     <StateVisualizer result={analysisResult as any} costEstimate={(analysisResult as any).costEstimate} sourceCode={code} />
                   ) : viewMode === "interact" && analysisResult ? (
@@ -577,12 +577,13 @@ function DemoContent() {
           <span>{activeFile.name}</span>
           {analysisResult && <span className="text-text/60">{(analysisResult as any).valid ? "✓" : "✗"}</span>}
           {analysisResult && (analysisResult as any).vm && <span>{(analysisResult as any).vm}</span>}
-          <span className="text-[9px] text-muted/50 capitalize">{envMode}</span>
         </div>
         <div className="flex items-center gap-3">
           {analysisResult && <span>{(analysisResult as any).stats?.totalLines ?? 0} lines</span>}
-          <span>Clarity</span>
-          <span className="text-[9px] text-muted/50">Ctrl+S to run</span>
+          <span>ClarityForge</span>
+          <span className="text-[9px] text-muted/50">·</span>
+          <span className="text-[9px] text-muted/50">{envMode === "vm" ? "VM" : envMode === "clarinet" ? "Clarinet" : "Deploy"}</span>
+          <span className="text-[9px] text-muted/50">· Ctrl+S to run</span>
         </div>
       </div>
     </div>
