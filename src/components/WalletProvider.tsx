@@ -1,7 +1,15 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
-import { connect, disconnect, isConnected, getLocalStorage } from "@stacks/connect";
+
+// Lazy-load @stacks/connect only on the client
+let connectModule: any = null;
+async function getConnectModule() {
+  if (!connectModule) {
+    connectModule = await import("@stacks/connect");
+  }
+  return connectModule;
+}
 
 interface WalletState {
   connected: boolean;
@@ -38,24 +46,27 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // Restore connection from localStorage on mount
   useEffect(() => {
-    if (isConnected()) {
-      const stored = getLocalStorage();
-      const stxAddr = stored?.addresses?.stx?.[0];
-      setState({
-        connected: true,
-        address: stxAddr?.address ?? null,
-        addresses: stored?.addresses?.stx ?? [],
-        connecting: false,
-      });
-    }
+    getConnectModule().then((mod) => {
+      if (mod.isConnected()) {
+        const stored = mod.getLocalStorage();
+        const stxAddr = stored?.addresses?.stx?.[0];
+        setState({
+          connected: true,
+          address: stxAddr?.address ?? null,
+          addresses: stored?.addresses?.stx ?? [],
+          connecting: false,
+        });
+      }
+    }).catch(() => {});
   }, []);
 
   const connectWallet = useCallback(async () => {
     setState((s) => ({ ...s, connecting: true }));
     try {
-      const result = await connect();
+      const mod = await getConnectModule();
+      const result = await mod.connect();
       const stxAddrs = result.addresses.filter(
-        (a) => a.symbol === "STX" || !a.symbol
+        (a: any) => a.symbol === "STX" || !a.symbol
       );
       setState({
         connected: true,
@@ -72,8 +83,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const disconnectWallet = useCallback(() => {
-    disconnect();
+  const disconnectWallet = useCallback(async () => {
+    const mod = await getConnectModule();
+    mod.disconnect();
     setState({
       connected: false,
       address: null,

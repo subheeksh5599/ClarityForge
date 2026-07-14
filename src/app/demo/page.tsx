@@ -4,7 +4,6 @@ import { Suspense, useState, useEffect, useRef, useCallback, type MutableRefObje
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { editor } from "monaco-editor";
-import { request } from "@stacks/connect";
 import Nav from "../../components/Nav";
 import StateVisualizer from "../../components/StateVisualizer";
 import AccountPanel from "../../components/AccountPanel";
@@ -337,6 +336,7 @@ function DemoContent() {
     // If wallet is connected, do real deployment
     if (wallet.connected) {
       try {
+        const { request } = await import("@stacks/connect");
         const contractName = activeFile.name.replace(".clar", "").replace(/[^a-zA-Z0-9_-]/g, "-");
         const result = await request("stx_deployContract", {
           name: contractName,

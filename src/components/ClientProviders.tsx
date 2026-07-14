@@ -1,17 +1,8 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { type ReactNode } from "react";
-
-const ThemeProvider = dynamic(
-  () => import("./ThemeProvider").then((mod) => ({ default: mod.ThemeProvider })),
-  { ssr: false }
-);
-
-const WalletProvider = dynamic(
-  () => import("./WalletProvider").then((mod) => ({ default: mod.WalletProvider })),
-  { ssr: false }
-);
+import { ThemeProvider } from "./ThemeProvider";
+import { WalletProvider } from "./WalletProvider";
 
 export default function ClientProviders({ children }: { children: ReactNode }) {
   return (
