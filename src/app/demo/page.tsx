@@ -1,16 +1,23 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef, useCallback } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback, type MutableRefObject } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { editor } from "monaco-editor";
 import { request } from "@stacks/connect";
 import Nav from "../../components/Nav";
 import StateVisualizer from "../../components/StateVisualizer";
+import AccountPanel from "../../components/AccountPanel";
+import VmTrace from "../../components/VmTrace";
 import { useWallet } from "../../components/WalletProvider";
 import { useTheme } from "../../components/ThemeProvider";
 import { TEMPLATES, getTemplate, Template } from "../../lib/clarity/templates";
 import { getExecutableFunctions, getDefaultParams, executeFunction, ExecutionResult } from "../../lib/clarity/executor";
+import { analyze, AnalysisResult } from "../../lib/clarity/analyzer";
+import {
+  createVmState, initStateFromContract, executeInVm,
+  type VmState, type VmResult, type SimAccount
+} from "../../lib/clarity/vm";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -51,6 +58,33 @@ function DemoContent() {
   const dragRef = { current: false };
   const wallet = useWallet();
   const { theme } = useTheme();
+
+  // ── VM state (Remix-style) ──
+  const vmStateRef = useRef<VmState>(createVmState());
+  const [selectedAccount, setSelectedAccount] = useState(vmStateRef.current.accounts[0].address);
+  const [envMode, setEnvMode] = useState<"vm" | "clarinet" | "deploy">("vm");
+  const [vmResult, setVmResult] = useState<VmResult | null>(null);
+  const [accountsLoading, setAccountsLoading] = useState(false);
+  const accounts = vmStateRef.current.accounts;
+
+  const refreshAccounts = async () => {
+    setAccountsLoading(true);
+    try {
+      const res = await fetch("/api/accounts");
+      const data = await res.json();
+      if (data.accounts?.length) {
+        const fresh = createVmState();
+        fresh.accounts = data.accounts.map((a: { address: string; label: string }, i: number) => ({
+          address: a.address,
+          balance: 100_000_000,
+          label: a.label || `Account ${i + 1}`,
+        }));
+        vmStateRef.current.accounts = fresh.accounts;
+        setSelectedAccount(fresh.accounts[0].address);
+      }
+    } catch { /* ignore */ }
+    setAccountsLoading(false);
+  };
 
   // ── localStorage persistence ──
   const STORAGE_KEY = "clarityforge-files";
@@ -161,6 +195,81 @@ function DemoContent() {
   }, []);
 
   const handleRun = async () => {
+    setRunning(true); setOutput(null); setTxHash(null); setVmResult(null);
+
+    // ── VM Mode: execute in browser simulator ──
+    if (envMode === "vm") {
+      try {
+        const analysisResult = analyze(code);
+        setAnalysisResult(analysisResult as unknown as Record<string, unknown>);
+
+        // Init state from contract definitions
+        const state = initStateFromContract(
+          JSON.parse(JSON.stringify(vmStateRef.current)),
+          analysisResult.definitions
+        );
+        state.caller = selectedAccount;
+        vmStateRef.current = state;
+
+        if (!analysisResult.valid) {
+          const l: string[] = ["✗ Analysis failed"];
+          for (const d of analysisResult.diagnostics) {
+            l.push(`${d.severity === "error" ? "✗" : "⚠"} L${d.line}: ${d.message}`);
+          }
+          setOutput(l.join("\n"));
+          setRunning(false);
+          return;
+        }
+
+        const fns = getExecutableFunctions(analysisResult.definitions);
+        if (fns.length > 0) {
+          const firstFn = fns[0];
+          const defaultParams = getDefaultParams(firstFn);
+          const result = executeInVm(firstFn, analysisResult.definitions, defaultParams, state);
+          vmStateRef.current = result.state;
+          setVmResult(result);
+
+          const l: string[] = [];
+          l.push(result.success ? "✓ VM execution complete" : "✗ VM execution failed");
+          l.push("");
+          l.push(`Function: ${firstFn.name} (${firstFn.type})`);
+          if (firstFn.params?.length) {
+            l.push(`Params: ${firstFn.params.map((p, i) => `${p.name}=${defaultParams[i]}`).join(", ")}`);
+          }
+          l.push(`Return: ${result.returnValue}`);
+          l.push("");
+          for (const step of result.steps) {
+            const icon = step.type === "error" ? "✗" : step.type === "transfer" ? "→" : step.type === "write" ? "✎" : step.type === "read" ? "◎" : step.type === "emit" ? "⚡" : "↩";
+            l.push(`  ${icon} ${step.detail}`);
+          }
+          l.push("");
+          l.push(`Cost: ${result.costEstimate.toLocaleString()} µSTX`);
+          l.push("");
+          l.push("→ Switch to Interact tab to call specific functions");
+          setOutput(l.join("\n"));
+        } else {
+          const l: string[] = [];
+          l.push(analysisResult.valid ? "✓ Analysis complete — no executable functions found" : "✗ Errors found");
+          l.push("");
+          if (analysisResult.definitions?.length) {
+            l.push("Defined:");
+            for (const d of analysisResult.definitions) {
+              const lb = d.type === "fungible-token" ? "Token" : d.type === "public-fn" ? "Public fn" : d.type === "read-only-fn" ? "Read-only" : d.type;
+              l.push(`  • ${lb}: ${d.name}`);
+            }
+          }
+          l.push("");
+          l.push(`Lines: ${analysisResult.stats.totalLines} | Cost: ${analysisResult.stats.tokens * 50}`);
+          setOutput(l.join("\n"));
+        }
+      } catch (e) {
+        setOutput(`✗ ${e instanceof Error ? e.message : "VM error"}`);
+      }
+      setRunning(false);
+      return;
+    }
+
+    // ── Clarinet / API mode ──
     setRunning(true); setOutput(null); setTxHash(null);
     try {
       const endpoint = useRealVM ? "/api/execute" : "/api/analyze";
@@ -285,16 +394,29 @@ function DemoContent() {
 
       {/* Run/Deploy bar */}
       <div className="flex items-center justify-between px-4 h-8 border-b border-line bg-bg shrink-0">
-        <span className="text-[10px] text-muted font-mono">{activeFile.name}</span>
         <div className="flex items-center gap-2">
-          <button onClick={() => setUseRealVM(!useRealVM)}
-            className={`text-[10px] font-mono px-1.5 py-0.5 border ${useRealVM ? "border-text/30 text-text" : "border-line text-muted"}`}
-            title={useRealVM ? "Clarinet VM (local only)" : "Static analyzer"}>
-            VM
-          </button>
+          <span className="text-[10px] text-muted font-mono">{activeFile.name}</span>
+          {/* Environment selector */}
+          <div className="flex items-center border border-line rounded-sm ml-2">
+            {(["vm", "clarinet", "deploy"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setEnvMode(m)}
+                className={`text-[9px] font-mono px-2 py-0.5 ${
+                  envMode === m
+                    ? "bg-text/10 text-text"
+                    : "text-muted hover:text-text"
+                } ${m !== "vm" ? "border-l border-line" : ""}`}
+              >
+                {m === "vm" ? "VM" : m === "clarinet" ? "Clarinet" : "Deploy"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
           <button onClick={handleRun} disabled={running}
             className={`flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium ${running ? "text-muted" : "text-bg bg-text hover:bg-text/90"}`}>
-            ▶ {running ? "…" : "Run"}
+            ▶ {running ? "…" : envMode === "vm" ? "Run" : "Check"}
           </button>
           <button onClick={handleDeploy} disabled={deploying}
             className={`flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium border border-line ${deploying ? "text-muted" : "text-text hover:bg-text/5"}`}>
@@ -384,7 +506,7 @@ function DemoContent() {
                   {viewMode === "visual" && analysisResult ? (
                     <StateVisualizer result={analysisResult as any} costEstimate={(analysisResult as any).costEstimate} sourceCode={code} />
                   ) : viewMode === "interact" && analysisResult ? (
-                    <InteractPanel analysisResult={analysisResult} selectedFn={selectedFn} setSelectedFn={setSelectedFn} fnParams={fnParams} setFnParams={setFnParams} execResult={execResult} setExecResult={setExecResult} />
+                    <InteractPanel analysisResult={analysisResult} selectedFn={selectedFn} setSelectedFn={setSelectedFn} fnParams={fnParams} setFnParams={setFnParams} execResult={execResult} setExecResult={setExecResult} envMode={envMode} vmStateRef={vmStateRef} selectedAccount={selectedAccount} />
                   ) : (
                     <pre className="font-mono text-xs text-text/80 leading-relaxed whitespace-pre-wrap">{output}</pre>
                   )}
@@ -393,6 +515,15 @@ function DemoContent() {
                 <div className="flex items-center justify-center h-full"><p className="text-muted text-xs"><span className="text-text">Run</span> to analyze</p></div>
               )}
             </div>
+            {envMode === "vm" && (
+              <AccountPanel
+                accounts={accounts}
+                selectedAccount={selectedAccount}
+                onSelectAccount={setSelectedAccount}
+                onRefresh={refreshAccounts}
+                loading={accountsLoading}
+              />
+            )}
           </div>
         )}
       </div>
@@ -403,6 +534,7 @@ function DemoContent() {
           <span>{activeFile.name}</span>
           {analysisResult && <span className="text-text/60">{(analysisResult as any).valid ? "✓" : "✗"}</span>}
           {analysisResult && (analysisResult as any).vm && <span>{(analysisResult as any).vm}</span>}
+          <span className="text-[9px] text-muted/50 capitalize">{envMode}</span>
         </div>
         <div className="flex items-center gap-3">
           {analysisResult && <span>{(analysisResult as any).stats?.totalLines ?? 0} lines</span>}
@@ -414,13 +546,45 @@ function DemoContent() {
   );
 }
 
-function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, setFnParams, execResult, setExecResult }: {
+function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, setFnParams, execResult, setExecResult, envMode, vmStateRef, selectedAccount }: {
   analysisResult: Record<string, unknown>; selectedFn: string; setSelectedFn: (v: string) => void;
   fnParams: string[]; setFnParams: (v: string[]) => void; execResult: ExecutionResult | null; setExecResult: (v: ExecutionResult | null) => void;
+  envMode: string; vmStateRef: MutableRefObject<VmState>; selectedAccount: string;
 }) {
   const defs = (analysisResult.definitions ?? []) as any[];
   const fns = getExecutableFunctions(defs);
-  const icon = (t: string) => t === "check" ? "✓" : t === "read" ? "👁" : t === "write" ? "✎" : t === "transfer" ? "→" : t === "emit" ? "⚡" : "↩";
+  const icon = (t: string) => {
+    if (t === "check") return "✓";
+    if (t === "read") return "◎";
+    if (t === "write") return "✎";
+    if (t === "transfer") return "→";
+    if (t === "emit") return "⚡";
+    if (t === "return") return "↩";
+    return "•";
+  };
+
+  const handleExecute = () => {
+    const fn = defs.find((d: any) => d.name === selectedFn);
+    if (!fn) return;
+
+    if (envMode === "vm") {
+      // Use VM simulator
+      const state = JSON.parse(JSON.stringify(vmStateRef.current));
+      state.caller = selectedAccount;
+      const result = executeInVm(fn, defs, fnParams, state);
+      vmStateRef.current = result.state;
+      // Convert VmResult to ExecutionResult format
+      setExecResult({
+        functionName: fn.name,
+        params: fnParams,
+        steps: result.steps.map(s => ({ type: s.type as any, detail: s.detail, storageAfter: s.storageChange ? { change: s.storageChange } : undefined })),
+        returnValue: result.returnValue,
+        costEstimate: result.costEstimate,
+      });
+    } else {
+      setExecResult(executeFunction(fn, defs, fnParams));
+    }
+  };
 
   if (!fns.length) return <div className="flex items-center justify-center h-full"><p className="text-muted text-xs">No executable functions</p></div>;
 
@@ -446,7 +610,7 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
         </div>
       )}
       {selectedFn && (
-        <button onClick={() => { const fn = defs.find((d: any) => d.name === selectedFn); if (fn) setExecResult(executeFunction(fn, defs, fnParams)); }}
+        <button onClick={handleExecute}
           className="w-full py-2 text-[11px] font-medium text-bg bg-text hover:bg-text/90">▶ Execute {selectedFn}</button>
       )}
       {execResult && (
