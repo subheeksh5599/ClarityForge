@@ -7,10 +7,16 @@ export interface Diagnostic {
   severity: "error" | "warning" | "info";
 }
 
+export interface ParamDef {
+  name: string;
+  type: string;
+}
+
 export interface Definition {
   type: "fungible-token" | "non-fungible-token" | "data-var" | "map" | "public-fn" | "read-only-fn" | "private-fn" | "constant" | "trait";
   name: string;
   line: number;
+  params?: ParamDef[];
 }
 
 export interface AnalysisResult {
@@ -24,6 +30,69 @@ export interface AnalysisResult {
     dataVars: number;
     maps: number;
   };
+}
+
+// Extract parameters from tokens after a function definition keyword
+// Looks for (param-name param-type) pairs inside the function signature parens
+function extractFnParams(tokens: Token[], startIdx: number): ParamDef[] {
+  const params: ParamDef[] = [];
+  let i = startIdx;
+  // Skip the function name token and opening paren
+  // Pattern: keyword fn-name ( param-name param-type ) ( param-name param-type ) ... )
+  // We're positioned at the keyword, need to skip to first param list
+  
+  // Find opening paren after function name
+  let parenDepth = 0;
+  let inParamList = false;
+  let currentParam: Partial<ParamDef> = {};
+  
+  for (let j = startIdx; j < tokens.length && j < startIdx + 30; j++) {
+    const t = tokens[j];
+    
+    if (t.type === "lparen") {
+      parenDepth++;
+      if (parenDepth === 2) {
+        // This is the start of the function body, stop looking for params
+        // Actually params are in the FIRST level of parens after fn name
+        // Pattern: define-public ( fn-name (param type) (param type) ) body...
+      }
+    }
+    if (t.type === "rparen") {
+      parenDepth--;
+      if (parenDepth === 0 && inParamList) {
+        // End of function signature
+        break;
+      }
+    }
+    
+    // We're looking for (name type) pairs in the param section
+    // The first lparen after the function keyword+name starts the overall signature
+    // Inside, each (name type) is a parameter
+    if (t.type === "lparen" && parenDepth === 1) {
+      inParamList = true;
+      currentParam = {};
+      continue;
+    }
+    
+    if (t.type === "rparen" && inParamList) {
+      if (currentParam.name) {
+        params.push({ name: currentParam.name, type: currentParam.type || "unknown" });
+      }
+      inParamList = false;
+      currentParam = {};
+      continue;
+    }
+    
+    if (inParamList && (t.type === "identifier" || t.type === "type" || t.type === "keyword")) {
+      if (!currentParam.name) {
+        currentParam.name = t.value;
+      } else if (!currentParam.type) {
+        currentParam.type = t.value;
+      }
+    }
+  }
+  
+  return params;
 }
 
 export function analyze(source: string): AnalysisResult {
@@ -116,7 +185,8 @@ export function analyze(source: string): AnalysisResult {
         const next = nonWhitespace[i + 1]; // (
         const nameTok = nonWhitespace[i + 2]; // name
         if (nameTok && nameTok.type === "identifier") {
-          definitions.push({ type: "public-fn", name: nameTok.value, line: t.line });
+          const params = extractFnParams(nonWhitespace, i);
+          definitions.push({ type: "public-fn", name: nameTok.value, line: t.line, params });
         }
         continue;
       }
@@ -126,7 +196,8 @@ export function analyze(source: string): AnalysisResult {
         const next = nonWhitespace[i + 1];
         const nameTok = nonWhitespace[i + 2];
         if (nameTok && nameTok.type === "identifier") {
-          definitions.push({ type: "read-only-fn", name: nameTok.value, line: t.line });
+          const params = extractFnParams(nonWhitespace, i);
+          definitions.push({ type: "read-only-fn", name: nameTok.value, line: t.line, params });
         }
         continue;
       }
@@ -136,7 +207,8 @@ export function analyze(source: string): AnalysisResult {
         const next = nonWhitespace[i + 1];
         const nameTok = nonWhitespace[i + 2];
         if (nameTok && nameTok.type === "identifier") {
-          definitions.push({ type: "private-fn", name: nameTok.value, line: t.line });
+          const params = extractFnParams(nonWhitespace, i);
+          definitions.push({ type: "private-fn", name: nameTok.value, line: t.line, params });
         }
         continue;
       }
@@ -193,10 +265,58 @@ export function analyze(source: string): AnalysisResult {
 }
 
 export function analyzeCost(_source: string): number {
-  // Rough cost estimation based on code size
-  // Clarity costs scale with execution complexity
-  // For the demo we return a reasonable estimate
   const lines = _source.split("\n").length;
   const parens = (_source.match(/\(/g) || []).length;
   return Math.max(500, lines * 300 + parens * 50);
+}
+
+// Build a call graph from definitions and source code
+// Returns nodes and edges showing which functions reference which
+export interface CallGraphNode {
+  name: string;
+  type: string;
+  calls: string[];
+}
+
+export function buildCallGraph(source: string, definitions: Definition[]): CallGraphNode[] {
+  const fnDefs = definitions.filter(
+    (d) => d.type === "public-fn" || d.type === "read-only-fn" || d.type === "private-fn"
+  );
+  
+  if (fnDefs.length === 0) return [];
+  
+  const fnNames = new Set(fnDefs.map((d) => d.name));
+  const nodes: CallGraphNode[] = [];
+  
+  // For each function, find what other functions it references
+  for (const fn of fnDefs) {
+    const calls: string[] = [];
+    
+    // Simple heuristic: find the function body and look for other function names
+    // Look for the pattern: (fn-name in the source after the function definition
+    const fnRegex = new RegExp(`define-(?:public|read-only|private)\\s*\\(\\s*${fn.name}[\\s\\S]*?\\)\\s*([\\s\\S]*?)(?:\\(define-|$)`, 'm');
+    const match = source.match(fnRegex);
+    
+    if (match && match[1]) {
+      const body = match[1];
+      for (const otherFn of fnNames) {
+        if (otherFn !== fn.name) {
+          // Check if the function name appears in the body
+          const escaped = otherFn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const refRegex = new RegExp(`\\b${escaped}\\b`);
+          if (refRegex.test(body)) {
+            calls.push(otherFn);
+          }
+        }
+      }
+    }
+    
+    nodes.push({
+      name: fn.name,
+      type: fn.type,
+      calls,
+    });
+  }
+  
+  return nodes;
 }

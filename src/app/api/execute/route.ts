@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   const ct = req.headers.get("content-type") ?? "";
   if (!ct.includes("application/json")) return NextResponse.json({ error: "Expected JSON" }, { status: 415 });
 
-  let body: { code?: string };
+  let body: { code?: string; fn?: string; params?: string[] };
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -49,10 +49,25 @@ export async function POST(req: NextRequest) {
   const tmpDir = mkdtempSync(join(tmpdir(), "cf-"));
   const contractPath = join(tmpDir, "contract.clar");
   mkdirSync(join(tmpDir, "settings"));
+  mkdirSync(join(tmpDir, "tests"));
+  
   writeFileSync(contractPath, body.code);
   writeFileSync(join(tmpDir, "Clarinet.toml"),
     `[project]\nname = "check"\n\n[contracts.contract]\npath = "contract.clar"\n`);
   writeFileSync(join(tmpDir, "settings", "Devnet.toml"), DEVNET_TOML);
+
+  // If a specific function is requested, generate a test file
+  if (body.fn) {
+    const params = (body.params || []).join(" ");
+    const testCode = `(define-public (test-execute)
+  (begin
+    (contract-call? .contract ${body.fn} ${params})
+  )
+)
+
+(test-execute)`;
+    writeFileSync(join(tmpDir, "tests", "execute_test.clar"), testCode);
+  }
 
   try {
     // If no clarinet, fall back to static analyzer
@@ -62,8 +77,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ...result, costEstimate: analyzeCost(body.code), vm: "static" });
     }
 
+    // If a function was requested for execution, run clarinet test
+    if (body.fn) {
+      try {
+        const testOutput = execSync(`${CLARINET_BIN} test --no-coverage`, {
+          cwd: tmpDir, timeout: 30_000, maxBuffer: 1024 * 1024, encoding: "utf-8",
+          env: { ...process.env },
+        });
+        const lines = testOutput.split("\n").filter(Boolean);
+        const execSteps: { type: string; detail: string }[] = [];
+        
+        for (const line of lines) {
+          const clean = line.replace(/^\s*\[.*?\]\s*/, "").trim();
+          if (clean) {
+            execSteps.push({ type: "output", detail: clean });
+          }
+        }
+        
+        return NextResponse.json({
+          valid: true,
+          diagnostics: [{ line: 1, col: 1, message: `✓ Executed ${body.fn} via Clarinet VM`, severity: "info" }],
+          rawOutput: lines.slice(0, 20),
+          vm: "clarinet",
+          costEstimate: 1500,
+          execSteps,
+        });
+      } catch (e: unknown) {
+        const err = e as { stderr?: string; stdout?: string; message?: string };
+        const msg = (err.stderr || err.stdout || err.message || "Execution failed").split("\n")[0];
+        return NextResponse.json({
+          valid: false,
+          diagnostics: [{ line: 1, col: 1, message: msg.replace(/^error:\s*/i, "").trim(), severity: "error" }],
+          costEstimate: 0,
+          rawOutput: [msg],
+          vm: "clarinet",
+        });
+      }
+    }
+
+    // Otherwise just check
     const raw = execSync(`${CLARINET_BIN} check`, {
-      cwd: tmpDir, timeout: 10_000, maxBuffer: 1024 * 1024, encoding: "utf-8",
+      cwd: tmpDir, timeout: 15_000, maxBuffer: 1024 * 1024, encoding: "utf-8",
       env: { ...process.env },
     });
 
@@ -84,7 +138,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      valid, diagnostics,
+      valid,
+      diagnostics,
       costEstimate: lines.length > 0 ? 1000 : 0,
       rawOutput: lines.slice(0, 15),
       vm: "clarinet",
@@ -103,4 +158,4 @@ export async function POST(req: NextRequest) {
 }
 
 export const runtime = "nodejs";
-export const maxDuration = 15;
+export const maxDuration = 30;

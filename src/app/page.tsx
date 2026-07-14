@@ -89,7 +89,7 @@ export default function Home() {
               Fig 1 — The editor
             </p>
 
-            <div data-fade className="border border-line overflow-hidden bg-[#080809]">
+            <div data-fade className="border border-line overflow-hidden bg-surface-alt">
               <div className="flex items-center gap-2 px-6 h-12 border-b border-line">
                 <span className="w-3 h-3 rounded-full bg-text/15" />
                 <span className="w-3 h-3 rounded-full bg-text/15" />

@@ -1,4 +1,4 @@
-import { Definition } from "./analyzer";
+import { Definition, ParamDef } from "./analyzer";
 
 export interface ExecutionStep {
   type: "check" | "read" | "write" | "transfer" | "emit" | "return";
@@ -14,292 +14,125 @@ export interface ExecutionResult {
   costEstimate: number;
 }
 
-interface SimState {
-  balances: Record<string, number>;
-  vars: Record<string, string>;
-  maps: Record<string, Record<string, string>>;
-  tokens: string[];
-  nfts: string[];
-  events: string[];
-}
-
+// Generic simulator that generates sensible execution traces for any function
 function simulateExecution(
   fn: Definition,
   definitions: Definition[],
-  _params: string[]
+  paramValues: string[]
 ): ExecutionResult {
   const steps: ExecutionStep[] = [];
-  const state: SimState = {
-    balances: { "tx-sender": 10_000_000, "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM": 5_000_000 },
-    vars: {},
-    maps: {},
-    tokens: definitions.filter((d) => d.type === "fungible-token").map((d) => d.name),
-    nfts: definitions.filter((d) => d.type === "non-fungible-token").map((d) => d.name),
-    events: [],
-  };
+  const fnType = fn.type === "public-fn" ? "public" : fn.type === "read-only-fn" ? "read-only" : "private";
+  const fnParams = fn.params || [];
 
-  // Initialize data vars from definitions
-  for (const d of definitions) {
-    if (d.type === "data-var") state.vars[d.name] = "u0";
-  }
-
+  // 1. Authorization check for public functions
   if (fn.type === "public-fn") {
-    const name = fn.name;
-
-    switch (name) {
-      case "transfer": {
-        steps.push({ type: "check", detail: "Asserting caller has sufficient balance..." });
-        steps.push({
-          type: "read",
-          detail: `Balance of tx-sender: ${state.balances["tx-sender"]?.toLocaleString() ?? "0"} µSTX`,
-        });
-        steps.push({
-          type: "transfer",
-          detail: `Transferring tokens from tx-sender to ${_params[1] ?? "recipient"}`,
-        });
-        steps.push({
-          type: "write",
-          detail: `Updated balance: tx-sender -${_params[0] ?? "amount"}, ${_params[1] ?? "recipient"} +${_params[0] ?? "amount"}`,
-        });
-        steps.push({
-          type: "emit",
-          detail: "Event: ft-transfer-event (sender, recipient, amount)",
-        });
-        steps.push({ type: "return", detail: "(ok true)" });
-        break;
-      }
-
-      case "mint": {
-        const nftName = state.nfts[0] ?? "nft-collection";
-        steps.push({ type: "check", detail: "Checking caller authorization..." });
-        steps.push({
-          type: "write",
-          detail: `Minting new ${nftName} token ID #1`,
-        });
-        steps.push({
-          type: "write",
-          detail: `Assigning ownership to ${_params[0] ?? "recipient"}`,
-        });
-        steps.push({ type: "emit", detail: "Event: nft-mint-event (id, recipient)" });
-        steps.push({ type: "return", detail: "(ok u1)" });
-        break;
-      }
-
-      case "propose": {
-        steps.push({ type: "check", detail: "Validating proposal description length..." });
-        steps.push({
-          type: "write",
-          detail: "Creating proposal #1 in proposals map",
-        });
-        steps.push({
-          type: "write",
-          detail: `Stored: proposer=tx-sender, description="${_params[0]?.slice(0, 20) ?? "..."}...", votes-for=0, executed=false`,
-        });
-        steps.push({ type: "emit", detail: "Event: proposal-created (id=u1)" });
-        steps.push({ type: "return", detail: "(ok u1)" });
-        break;
-      }
-
-      case "stake": {
-        steps.push({ type: "check", detail: "Checking token approval..." });
-        steps.push({
-          type: "transfer",
-          detail: `Transferring ${_params[0] ?? "amount"} tokens from caller to contract`,
-        });
-        steps.push({
-          type: "write",
-          detail: `Recording stake: amount=${_params[0] ?? "amount"}, since=block-height, rewards=0`,
-        });
-        steps.push({
-          type: "write",
-          detail: `Updated total-staked: +${_params[0] ?? "amount"}`,
-        });
-        steps.push({ type: "emit", detail: "Event: stake-event (user, amount)" });
-        steps.push({ type: "return", detail: "(ok true)" });
-        break;
-      }
-
-      case "unstake": {
-        steps.push({ type: "check", detail: "Verifying stake exists and amount is sufficient..." });
-        steps.push({
-          type: "read",
-          detail: `Current stake: amount=${_params[0] ?? "amount"}, rewards accrued`,
-        });
-        steps.push({
-          type: "write",
-          detail: `Reducing stake by ${_params[0] ?? "amount"}`,
-        });
-        steps.push({
-          type: "transfer",
-          detail: `Returning ${_params[0] ?? "amount"} tokens to caller`,
-        });
-        steps.push({ type: "emit", detail: "Event: unstake-event (user, amount)" });
-        steps.push({ type: "return", detail: "(ok true)" });
-        break;
-      }
-
-      case "create-pool": {
-        steps.push({ type: "check", detail: "Validating token trait references..." });
-        steps.push({
-          type: "write",
-          detail: "Creating new pool #1 in pools map",
-        });
-        steps.push({
-          type: "write",
-          detail: "Pool initialized: reserve-x=0, reserve-y=0, lp-supply=0",
-        });
-        steps.push({ type: "emit", detail: "Event: pool-created (id=u1)" });
-        steps.push({ type: "return", detail: "(ok u1)" });
-        break;
-      }
-
-      case "propose-tx": {
-        steps.push({ type: "check", detail: "Verifying proposer is an owner..." });
-        steps.push({
-          type: "write",
-          detail: "Creating transaction #1 in transactions map",
-        });
-        steps.push({
-          type: "write",
-          detail: `Stored: to=${_params[0] ?? "recipient"}, amount=${_params[1] ?? "0"}, executed=false`,
-        });
-        steps.push({ type: "emit", detail: "Event: tx-proposed (id=u1)" });
-        steps.push({ type: "return", detail: "(ok u1)" });
-        break;
-      }
-
-      case "vote": {
-        steps.push({ type: "check", detail: "Checking caller hasn't already voted..." });
-        steps.push({
-          type: "write",
-          detail: `Recording vote: proposal=${_params[0] ?? "0"}, voter=tx-sender, support=true`,
-        });
-        steps.push({
-          type: "write",
-          detail: `Updated tally: votes-for increased by 1`,
-        });
-        steps.push({ type: "emit", detail: "Event: vote-cast (proposal, voter, support)" });
-        steps.push({ type: "return", detail: "(ok true)" });
-        break;
-      }
-
-      case "sign": {
-        steps.push({ type: "check", detail: "Verifying signer is an owner..." });
-        steps.push({
-          type: "write",
-          detail: `Recording signature: tx=${_params[0] ?? "0"}, signer=tx-sender`,
-        });
-        steps.push({
-          type: "check",
-          detail: "Checking if required signatures reached...",
-        });
-        steps.push({ type: "return", detail: "(ok true)" });
-        break;
-      }
-
-      case "add-liquidity": {
-        steps.push({ type: "check", detail: "Validating pool exists and amounts > 0..." });
-        steps.push({
-          type: "transfer",
-          detail: `Transferring ${_params[1] ?? "amount-x"} token-x to pool`,
-        });
-        steps.push({
-          type: "transfer",
-          detail: `Transferring ${_params[2] ?? "amount-y"} token-y to pool`,
-        });
-        steps.push({
-          type: "write",
-          detail: "Minting LP tokens proportional to contribution",
-        });
-        steps.push({
-          type: "write",
-          detail: "Updated reserves and LP supply",
-        });
-        steps.push({ type: "emit", detail: "Event: liquidity-added (pool, provider, amounts)" });
-        steps.push({ type: "return", detail: "(ok true)" });
-        break;
-      }
-
-      case "increment": {
-        steps.push({ type: "read", detail: "Reading current counter value: u0" });
-        steps.push({ type: "write", detail: "Setting counter to u1" });
-        steps.push({ type: "return", detail: "(ok u1)" });
-        break;
-      }
-
-      default: {
-        steps.push({ type: "check", detail: `Executing ${name} with provided parameters...` });
-        steps.push({
-          type: "read",
-          detail: "Reading contract state...",
-        });
-        steps.push({
-          type: "write",
-          detail: "Updating contract storage...",
-        });
-        steps.push({ type: "emit", detail: `Event: ${name}-completed` });
-        steps.push({ type: "return", detail: "(ok true)" });
-      }
-    }
+    steps.push({
+      type: "check",
+      detail: `Verifying caller authorization for ${fn.name}...`,
+    });
   }
 
+  // 2. Parameter validation
+  if (fnParams.length > 0) {
+    const paramDescs = fnParams
+      .map((p: ParamDef, i: number) => `${p.name}: ${p.type}${paramValues[i] ? ` = ${paramValues[i]}` : ""}`)
+      .join(", ");
+    steps.push({
+      type: "check",
+      detail: `Validating parameters: ${paramDescs}`,
+    });
+  }
+
+  // 3. Read operations (for read-only functions)
   if (fn.type === "read-only-fn") {
-    const name = fn.name;
-
-    switch (name) {
-      case "get-balance": {
+    const dataVars = definitions.filter((d) => d.type === "data-var");
+    const maps = definitions.filter((d) => d.type === "map");
+    if (dataVars.length > 0) {
+      steps.push({
+        type: "read",
+        detail: `Reading data-var: ${dataVars[0].name}`,
+      });
+    }
+    if (maps.length > 0) {
+      steps.push({
+        type: "read",
+        detail: `Looking up map: ${maps[0].name}`,
+      });
+    }
+    if (dataVars.length === 0 && maps.length === 0) {
+      const tokens = definitions.filter(
+        (d) => d.type === "fungible-token" || d.type === "non-fungible-token"
+      );
+      if (tokens.length > 0) {
         steps.push({
           type: "read",
-          detail: `Reading balance of ${_params[0] ?? "who"}: 1,000,000 µSTX`,
+          detail: `Reading token state: ${tokens[0].name}`,
         });
-        steps.push({ type: "return", detail: "(ok u1000000)" });
-        break;
-      }
-      case "get-total-supply": {
-        steps.push({
-          type: "read",
-          detail: "Reading total supply: 1,000,000",
-        });
-        steps.push({ type: "return", detail: "(ok u1000000)" });
-        break;
-      }
-      case "get-owner": {
-        steps.push({
-          type: "read",
-          detail: `Looking up owner of token #${_params[0] ?? "0"}`,
-        });
-        steps.push({ type: "return", detail: "(ok (some ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM))" });
-        break;
-      }
-      case "get-stake": {
-        steps.push({
-          type: "read",
-          detail: `Reading stake data for ${_params[0] ?? "who"}`,
-        });
-        steps.push({ type: "return", detail: "(ok (some {amount: u1000, since: u142000, rewards: u50}))" });
-        break;
-      }
-      case "get-counter": {
-        steps.push({ type: "read", detail: "Reading counter: u1" });
-        steps.push({ type: "return", detail: "(ok u1)" });
-        break;
-      }
-      default: {
-        steps.push({
-          type: "read",
-          detail: `Reading ${name}...`,
-        });
-        steps.push({ type: "return", detail: "(ok true)" });
       }
     }
   }
+
+  // 4. Write operations (for public functions)
+  if (fn.type === "public-fn") {
+    // Check for data-var modifications
+    const dataVars = definitions.filter((d) => d.type === "data-var");
+    if (dataVars.length > 0) {
+      steps.push({
+        type: "write",
+        detail: `Updating data-var: ${dataVars[0].name}`,
+      });
+    }
+
+    // Check for map modifications
+    const maps = definitions.filter((d) => d.type === "map");
+    if (maps.length > 0) {
+      steps.push({
+        type: "write",
+        detail: `Inserting into map: ${maps[0].name}`,
+      });
+    }
+
+    // Token transfers
+    const tokens = definitions.filter(
+      (d) => d.type === "fungible-token" || d.type === "non-fungible-token"
+    );
+    if (tokens.length > 0) {
+      steps.push({
+        type: "transfer",
+        detail: `Executing token operation on ${tokens[0].name}`,
+      });
+    }
+  }
+
+  // 5. Events
+  steps.push({
+    type: "emit",
+    detail: `Event: ${fn.name}-executed`,
+  });
+
+  // 6. Return value
+  const returnValue = fn.type === "read-only-fn"
+    ? `(ok (some {result: true}))`
+    : fn.type === "public-fn"
+    ? `(ok true)`
+    : `true`;
+
+  steps.push({
+    type: "return",
+    detail: returnValue,
+  });
+
+  // Cost estimation
+  const costBase = fn.type === "public-fn" ? 2000 : fn.type === "read-only-fn" ? 500 : 1000;
+  const costParams = fnParams.length * 200;
+  const costStorage = definitions.filter((d) => d.type === "data-var" || d.type === "map").length * 300;
 
   return {
     functionName: fn.name,
-    params: _params,
+    params: paramValues,
     steps,
     returnValue: steps[steps.length - 1]?.detail ?? "(ok true)",
-    costEstimate: steps.length * 1_500 + Math.floor(Math.random() * 3_000),
+    costEstimate: costBase + costParams + costStorage + Math.floor(Math.random() * 1000),
   };
 }
 
@@ -310,23 +143,31 @@ export function getExecutableFunctions(definitions: Definition[]): Definition[] 
 }
 
 export function getDefaultParams(fn: Definition): string[] {
-  if (fn.type === "read-only-fn") {
-    return ["ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"];
-  }
-  switch (fn.name) {
-    case "transfer": return ["u100", "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"];
-    case "mint": return ["ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"];
-    case "propose": return ["\"Upgrade protocol to v2\""];
-    case "stake": return ["u500"];
-    case "unstake": return ["u200"];
-    case "create-pool": return ["token-x", "token-y"];
-    case "add-liquidity": return ["u1", "u1000", "u1000"];
-    case "propose-tx": return ["ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM", "u500"];
-    case "vote": return ["u1", "true"];
-    case "sign": return ["u1"];
-    case "increment": return [];
-    default: return [];
-  }
+  const params = fn.params || [];
+  if (params.length === 0) return [];
+  
+  return params.map((p: ParamDef) => {
+    // Generate sensible defaults based on type
+    switch (p.type) {
+      case "uint": return "u1";
+      case "int": return "0";
+      case "bool": return "true";
+      case "principal": return "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM";
+      case "string-utf8":
+      case "string-ascii":
+      case "(string-utf8 256)":
+      case "(string-ascii 256)":
+        return '"hello"';
+      default:
+        if (p.type?.startsWith("(string-utf8") || p.type?.startsWith("(string-ascii")) {
+          return '"value"';
+        }
+        if (p.type?.startsWith("(buff")) {
+          return "0x00";
+        }
+        return "u1";
+    }
+  });
 }
 
 export function executeFunction(

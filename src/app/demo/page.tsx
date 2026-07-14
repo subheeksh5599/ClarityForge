@@ -4,8 +4,11 @@ import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { editor } from "monaco-editor";
+import { request } from "@stacks/connect";
 import Nav from "../../components/Nav";
 import StateVisualizer from "../../components/StateVisualizer";
+import { useWallet } from "../../components/WalletProvider";
+import { useTheme } from "../../components/ThemeProvider";
 import { TEMPLATES, getTemplate, Template } from "../../lib/clarity/templates";
 import { getExecutableFunctions, getDefaultParams, executeFunction, ExecutionResult } from "../../lib/clarity/executor";
 
@@ -46,6 +49,8 @@ function DemoContent() {
   const [useRealVM, setUseRealVM] = useState(true);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const dragRef = { current: false };
+  const wallet = useWallet();
+  const { theme } = useTheme();
 
   // ── localStorage persistence ──
   const STORAGE_KEY = "clarityforge-files";
@@ -195,10 +200,35 @@ function DemoContent() {
 
   const handleDeploy = async () => {
     setDeploying(true); setTxHash(null);
+
+    // If wallet is connected, do real deployment
+    if (wallet.connected) {
+      try {
+        const contractName = activeFile.name.replace(".clar", "").replace(/[^a-zA-Z0-9_-]/g, "-");
+        const result = await request("stx_deployContract", {
+          name: contractName,
+          clarityCode: code,
+          network: "testnet",
+        });
+        if (result.txid) {
+          setTxHash(result.txid);
+          setOutput(`✓ Contract deployed!\\n\\nNetwork: Stacks testnet\\nTxID: ${result.txid}\\n→ Check status on explorer`);
+        } else {
+          setOutput("✓ Transaction sent (txid pending)");
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Deploy rejected";
+        setOutput(`✗ ${msg}`);
+      }
+      setDeploying(false);
+      return;
+    }
+
+    // Fallback: simulated deploy
     try {
       const res = await fetch("/api/deploy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
       const data = await res.json();
-      if (res.ok && data.txHash) { setTxHash(data.txHash); setOutput(`✓ Simulation complete\n\nNetwork: Stacks testnet\nContract: ${data.contractId ?? "N/A"}\n→ Wallet integration planned for Phase 2`); }
+      if (res.ok && data.txHash) { setTxHash(data.txHash); setOutput(`✓ Simulation complete\\n\\nNetwork: Stacks testnet\\nContract: ${data.contractId ?? "N/A"}\\n→ Connect wallet for real deployment`); }
       else setOutput(`✗ ${data.error || "Deploy failed"}`);
     } catch (e) { setOutput(`✗ ${e instanceof Error ? e.message : "Error"}`); }
     setDeploying(false);
@@ -212,11 +242,11 @@ function DemoContent() {
   }, []);
 
   return (
-    <div className="h-svh flex flex-col bg-[#0A0A0B] pt-16">
+    <div className="h-svh flex flex-col bg-surface pt-16">
       <Nav />
 
       {/* File tabs toolbar */}
-      <div className="flex items-center border-b border-line bg-[#0C0C0D] shrink-0">
+      <div className="flex items-center border-b border-line bg-bg shrink-0">
         <div className="flex items-center flex-1 overflow-x-auto">
           {files.map((f) => (
             <button
@@ -224,7 +254,7 @@ function DemoContent() {
               onClick={() => { if (renamingFile !== f.id) setActiveFileId(f.id); }}
               onDoubleClick={() => startRename(f)}
               className={`group flex items-center gap-1.5 px-3 py-2 text-[11px] font-mono border-r border-line transition-colors shrink-0 ${
-                f.id === activeFileId ? "text-text bg-[#0A0A0B] border-b border-b-[#0A0A0B] -mb-px" : "text-muted hover:text-text"
+                f.id === activeFileId ? "text-text bg-surface border-b border-b-[#0A0A0B] -mb-px" : "text-muted hover:text-text"
               }`}
             >
               {renamingFile === f.id ? (
@@ -233,7 +263,7 @@ function DemoContent() {
                   onChange={(e) => setRenameValue(e.target.value)}
                   onBlur={commitRename}
                   onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingFile(null); }}
-                  className="bg-[#0A0A0B] text-text text-[11px] font-mono outline-none border border-text/20 px-1 py-0 w-32"
+                  className="bg-surface text-text text-[11px] font-mono outline-none border border-text/20 px-1 py-0 w-32"
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
                 />
@@ -254,7 +284,7 @@ function DemoContent() {
       </div>
 
       {/* Run/Deploy bar */}
-      <div className="flex items-center justify-between px-4 h-8 border-b border-line bg-[#0C0C0D] shrink-0">
+      <div className="flex items-center justify-between px-4 h-8 border-b border-line bg-bg shrink-0">
         <span className="text-[10px] text-muted font-mono">{activeFile.name}</span>
         <div className="flex items-center gap-2">
           <button onClick={() => setUseRealVM(!useRealVM)}
@@ -270,6 +300,18 @@ function DemoContent() {
             className={`flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium border border-line ${deploying ? "text-muted" : "text-text hover:bg-text/5"}`}>
             ↑ {deploying ? "…" : "Deploy"}
           </button>
+          <button
+            onClick={wallet.connected ? wallet.disconnectWallet : wallet.connectWallet}
+            disabled={wallet.connecting}
+            className={`flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium border border-line ${
+              wallet.connected
+                ? "border-text/30 text-text hover:bg-text/5"
+                : "text-muted hover:text-text"
+            }`}
+            title={wallet.connected ? `Connected: ${wallet.address?.slice(0, 8)}…` : "Connect wallet for real deployment"}
+          >
+            {wallet.connecting ? "…" : wallet.connected ? "◉ Wallet" : "○ Connect"}
+          </button>
           <button onClick={handleDownload}
             className="flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium border border-line text-muted hover:text-text">
             ↓ Save
@@ -282,9 +324,40 @@ function DemoContent() {
       {/* Editor + Panel */}
       <div id="ide-container" className="flex-1 flex min-h-0">
         <div style={{ width: rightPanelOpen ? `${splitRatio}%` : "100%" }}>
-          <MonacoEditor language="rust" theme="clarityforge" value={code} onChange={(v) => setCode(v || "")}
+          <MonacoEditor language="rust" theme={theme === "dark" ? "clarityforge-dark" : "clarityforge-light"} value={code} onChange={(v) => setCode(v || "")}
             onMount={(editor) => { editorRef.current = editor; }}
-            beforeMount={(monaco) => { monaco.editor.defineTheme("clarityforge", { base: "vs-dark", inherit: true, rules: [{ token: "comment", foreground: "555555", fontStyle: "italic" }, { token: "keyword", foreground: "999999" }, { token: "string", foreground: "CCCCCC" }], colors: { "editor.background": "#0A0A0B", "editor.foreground": "#EBEBE5", "editor.lineHighlightBackground": "#111113", "editor.selectionBackground": "#EBEBE515", "editorCursor.foreground": "#EBEBE5", "editorLineNumber.foreground": "#1E1E20", "editorLineNumber.activeForeground": "#6B6B6B", "editorGutter.background": "#0A0A0B" } }); }}
+            beforeMount={(monaco) => {
+              // Dark theme
+              monaco.editor.defineTheme("clarityforge-dark", {
+                base: "vs-dark", inherit: true,
+                rules: [
+                  { token: "comment", foreground: "555555", fontStyle: "italic" },
+                  { token: "keyword", foreground: "999999" },
+                  { token: "string", foreground: "CCCCCC" },
+                ],
+                colors: {
+                  "editor.background": "#0A0A0B", "editor.foreground": "#EBEBE5",
+                  "editor.lineHighlightBackground": "#111113", "editor.selectionBackground": "#EBEBE515",
+                  "editorCursor.foreground": "#EBEBE5", "editorLineNumber.foreground": "#1E1E20",
+                  "editorLineNumber.activeForeground": "#6B6B6B", "editorGutter.background": "#0A0A0B",
+                },
+              });
+              // Light theme
+              monaco.editor.defineTheme("clarityforge-light", {
+                base: "vs", inherit: true,
+                rules: [
+                  { token: "comment", foreground: "999999", fontStyle: "italic" },
+                  { token: "keyword", foreground: "666666" },
+                  { token: "string", foreground: "333333" },
+                ],
+                colors: {
+                  "editor.background": "#FAF8F4", "editor.foreground": "#1A1A1A",
+                  "editor.lineHighlightBackground": "#F2EFEA", "editor.selectionBackground": "#1A1A1A15",
+                  "editorCursor.foreground": "#1A1A1A", "editorLineNumber.foreground": "#E5E0D8",
+                  "editorLineNumber.activeForeground": "#999999", "editorGutter.background": "#FAF8F4",
+                },
+              });
+            }}
             options={{ fontSize: 14, fontFamily: "'DM Mono', monospace", lineNumbers: "on", minimap: { enabled: false }, scrollBeyondLastLine: false, padding: { top: 16, bottom: 16 }, renderLineHighlight: "line", cursorBlinking: "smooth", overviewRulerLanes: 0, hideCursorInOverviewRuler: true, overviewRulerBorder: false, folding: true, lineNumbersMinChars: 3, automaticLayout: true, scrollbar: { vertical: "auto", horizontal: "auto", verticalScrollbarSize: 6 } }}
             loading={<div className="h-full flex items-center justify-center text-muted text-sm font-mono">…</div>} />
         </div>
@@ -297,7 +370,7 @@ function DemoContent() {
         )}
 
         {rightPanelOpen && (
-          <div style={{ width: `${100 - splitRatio}%` }} className="border-l border-line flex flex-col min-h-0 bg-[#080809]">
+          <div style={{ width: `${100 - splitRatio}%` }} className="border-l border-line flex flex-col min-h-0 bg-surface-alt">
             <div className="flex items-center border-b border-line shrink-0 px-2">
               {(["visual", "interact", "text"] as const).map((m) => (
                 <button key={m} onClick={() => setViewMode(m)}
@@ -309,7 +382,7 @@ function DemoContent() {
                 <div>
                   {txHash && <div className="mb-4 pb-4 border-b border-line"><p className="text-[10px] text-muted font-mono uppercase tracking-wider mb-0.5">Deploy Simulation</p><p className="font-mono text-[10px] text-muted">Phase 2 — wallet integration</p></div>}
                   {viewMode === "visual" && analysisResult ? (
-                    <StateVisualizer result={analysisResult as any} costEstimate={(analysisResult as any).costEstimate} />
+                    <StateVisualizer result={analysisResult as any} costEstimate={(analysisResult as any).costEstimate} sourceCode={code} />
                   ) : viewMode === "interact" && analysisResult ? (
                     <InteractPanel analysisResult={analysisResult} selectedFn={selectedFn} setSelectedFn={setSelectedFn} fnParams={fnParams} setFnParams={setFnParams} execResult={execResult} setExecResult={setExecResult} />
                   ) : (
@@ -325,7 +398,7 @@ function DemoContent() {
       </div>
 
       {/* Status bar */}
-      <div className="flex items-center justify-between px-4 h-6 border-t border-line bg-[#0C0C0D] text-[10px] font-mono text-muted shrink-0">
+      <div className="flex items-center justify-between px-4 h-6 border-t border-line bg-bg text-[10px] font-mono text-muted shrink-0">
         <div className="flex items-center gap-3">
           <span>{activeFile.name}</span>
           {analysisResult && <span className="text-text/60">{(analysisResult as any).valid ? "✓" : "✗"}</span>}
@@ -356,7 +429,7 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
       <div>
         <p className="text-[10px] text-muted font-mono uppercase tracking-wider mb-2">Function</p>
         <select value={selectedFn} onChange={(e) => { setSelectedFn(e.target.value); const fn = defs.find((d: any) => d.name === e.target.value); if (fn) setFnParams(getDefaultParams(fn)); setExecResult(null); }}
-          className="w-full bg-[#0A0A0B] border border-line text-xs text-text px-3 py-2 font-mono focus:outline-none focus:border-text/40">
+          className="w-full bg-surface border border-line text-xs text-text px-3 py-2 font-mono focus:outline-none focus:border-text/40">
           <option value="">Select…</option>
           {fns.map((f: any) => <option key={f.name} value={f.name}>{f.name} ({f.type === "public-fn" ? "public" : "read-only"})</option>)}
         </select>
@@ -367,7 +440,7 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
           <div className="space-y-1.5">
             {fnParams.map((p, i) => (
               <input key={i} value={p} onChange={(e) => { const n = [...fnParams]; n[i] = e.target.value; setFnParams(n); }}
-                className="w-full bg-[#0A0A0B] border border-line text-xs text-text px-3 py-2 font-mono focus:outline-none focus:border-text/40" placeholder={`param ${i + 1}`} />
+                className="w-full bg-surface border border-line text-xs text-text px-3 py-2 font-mono focus:outline-none focus:border-text/40" placeholder={`param ${i + 1}`} />
             ))}
           </div>
         </div>
@@ -399,7 +472,7 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
 
 export default function Demo() {
   return (
-    <Suspense fallback={<div className="h-svh flex items-center justify-center text-muted text-sm bg-[#0A0A0B]">…</div>}>
+    <Suspense fallback={<div className="h-svh flex items-center justify-center text-muted text-sm bg-surface">…</div>}>
       <DemoContent />
     </Suspense>
   );

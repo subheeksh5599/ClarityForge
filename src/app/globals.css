@@ -1,12 +1,32 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-bg: #0C0C0D;
-  --color-text: #EBEBE5;
-  --color-muted: rgba(235, 235, 229, 0.45);
-  --color-line: rgba(235, 235, 229, 0.08);
+  --color-bg: var(--bg);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
   --font-display: var(--font-space-grotesk);
   --font-mono: var(--font-dm-mono);
+}
+
+:root {
+  --bg: #0C0C0D;
+  --text: #EBEBE5;
+  --muted: rgba(235, 235, 229, 0.45);
+  --line: rgba(235, 235, 229, 0.08);
+  --surface: #0A0A0B;
+  --surface-alt: #080809;
+}
+
+:root.light {
+  --bg: #FAF8F4;
+  --text: #1A1A1A;
+  --muted: rgba(26, 26, 26, 0.5);
+  --line: rgba(26, 26, 26, 0.1);
+  --surface: #F2EFEA;
+  --surface-alt: #EDE9E3;
 }
 
 * {
@@ -14,12 +34,16 @@
 }
 
 body {
-  background: #0C0C0D;
-  color: #EBEBE5;
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-space-grotesk), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
   background: rgba(235, 235, 229, 0.15);
+}
+
+:root.light ::selection {
+  background: rgba(26, 26, 26, 0.15);
 }

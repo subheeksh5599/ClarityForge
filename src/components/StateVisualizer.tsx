@@ -1,24 +1,25 @@
 "use client";
 
-import { AnalysisResult, Definition } from "@/lib/clarity/analyzer";
+import { AnalysisResult, Definition, CallGraphNode, buildCallGraph } from "@/lib/clarity/analyzer";
 
 interface Props {
   result: AnalysisResult;
   costEstimate?: number;
+  sourceCode?: string;
 }
 
 function DefIcon({ type }: { type: Definition["type"] }) {
   switch (type) {
-    case "fungible-token": return "💰";
-    case "non-fungible-token": return "🖼";
+    case "fungible-token": return "⬡";
+    case "non-fungible-token": return "⬢";
     case "public-fn": return "→";
-    case "read-only-fn": return "👁";
-    case "private-fn": return "🔒";
-    case "data-var": return "📦";
-    case "map": return "🗺";
-    case "constant": return "📌";
-    case "trait": return "🔷";
-    default: return "•";
+    case "read-only-fn": return "◎";
+    case "private-fn": return "◈";
+    case "data-var": return "▤";
+    case "map": return "▦";
+    case "constant": return "◆";
+    case "trait": return "◇";
+    default: return "·";
   }
 }
 
@@ -37,7 +38,115 @@ function DefLabel({ type }: { type: Definition["type"] }) {
   }
 }
 
-export default function StateVisualizer({ result, costEstimate }: Props) {
+function CallGraphSVG({ nodes }: { nodes: CallGraphNode[] }) {
+  if (nodes.length === 0) return null;
+  
+  const nodeCount = nodes.length;
+  const hasEdges = nodes.some((n) => n.calls.length > 0);
+  
+  // Layout: arrange nodes in a column or grid
+  const cols = Math.min(nodeCount, 3);
+  const rows = Math.ceil(nodeCount / cols);
+  const nodeW = 140;
+  const nodeH = 36;
+  const gapX = 24;
+  const gapY = 20;
+  const padX = 20;
+  const padY = 16;
+  const width = cols * nodeW + (cols - 1) * gapX + padX * 2;
+  const height = rows * nodeH + (rows - 1) * gapY + padY * 2;
+  
+  const positions: Record<string, { x: number; y: number }> = {};
+  nodes.forEach((n, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    positions[n.name] = {
+      x: padX + col * (nodeW + gapX) + nodeW / 2,
+      y: padY + row * (nodeH + gapY) + nodeH / 2,
+    };
+  });
+  
+  // Build edge list
+  const edges: { from: string; to: string; fromPos: { x: number; y: number }; toPos: { x: number; y: number } }[] = [];
+  for (const node of nodes) {
+    for (const callee of node.calls) {
+      if (positions[callee]) {
+        edges.push({
+          from: node.name,
+          to: callee,
+          fromPos: positions[node.name],
+          toPos: positions[callee],
+        });
+      }
+    }
+  }
+  
+  if (!hasEdges) {
+    // Just show nodes without edges
+    return (
+      <div className="border border-line rounded-sm overflow-hidden">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ maxHeight: height + 16 }}>
+          {nodes.map((n, i) => {
+            const pos = positions[n.name];
+            const color = n.type === "public-fn" ? "rgba(235,235,229,0.6)"
+              : n.type === "read-only-fn" ? "rgba(235,235,229,0.4)"
+              : "rgba(235,235,229,0.25)";
+            return (
+              <g key={n.name}>
+                <rect x={pos.x - nodeW/2} y={pos.y - nodeH/2} width={nodeW} height={nodeH} rx={4}
+                  fill="none" stroke={color} strokeWidth={1} />
+                <text x={pos.x} y={pos.y + 5} textAnchor="middle" fill="rgba(235,235,229,0.8)"
+                  fontSize={12} fontFamily="DM Mono, monospace">{n.name}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="border border-line rounded-sm overflow-hidden">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ maxHeight: height + 16 }}>
+        <defs>
+          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="rgba(235,235,229,0.3)" />
+          </marker>
+        </defs>
+        
+        {/* Edges */}
+        {edges.map((edge, i) => (
+          <line key={i}
+            x1={edge.fromPos.x} y1={edge.fromPos.y}
+            x2={edge.toPos.x} y2={edge.toPos.y}
+            stroke="rgba(235,235,229,0.2)" strokeWidth={1}
+            markerEnd="url(#arrowhead)" />
+        ))}
+        
+        {/* Nodes */}
+        {nodes.map((n) => {
+          const pos = positions[n.name];
+          const isSource = edges.some((e) => e.from === n.name);
+          const isTarget = edges.some((e) => e.to === n.name);
+          const color = n.type === "public-fn" ? "rgba(235,235,229,0.6)"
+            : n.type === "read-only-fn" ? "rgba(235,235,229,0.4)"
+            : "rgba(235,235,229,0.25)";
+          const fill = isSource || isTarget ? "rgba(235,235,229,0.05)" : "transparent";
+          return (
+            <g key={n.name}>
+              <rect x={pos.x - nodeW/2} y={pos.y - nodeH/2} width={nodeW} height={nodeH} rx={4}
+                fill={fill} stroke={color} strokeWidth={isSource ? 1.5 : 1} />
+              <text x={pos.x} y={pos.y + 5} textAnchor="middle" fill="rgba(235,235,229,0.8)"
+                fontSize={12} fontFamily="DM Mono, monospace">{n.name}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+export default function StateVisualizer({ result, costEstimate, sourceCode }: Props) {
   const tokens = result.definitions.filter((d) =>
     d.type === "fungible-token" || d.type === "non-fungible-token"
   );
@@ -47,6 +156,8 @@ export default function StateVisualizer({ result, costEstimate }: Props) {
   const storage = result.definitions.filter((d) =>
     d.type === "data-var" || d.type === "map" || d.type === "constant"
   );
+
+  const callGraph = sourceCode ? buildCallGraph(sourceCode, result.definitions) : null;
 
   return (
     <div className="space-y-8">
@@ -94,7 +205,14 @@ export default function StateVisualizer({ result, costEstimate }: Props) {
               <div key={f.name} className="flex items-center justify-between py-2 px-3 hover:bg-text/[0.02] transition-colors rounded-sm">
                 <div className="flex items-center gap-3">
                   <span className="text-xs w-5 text-center">{DefIcon({ type: f.type })}</span>
-                  <span className="text-sm font-mono">{f.name}</span>
+                  <div>
+                    <span className="text-sm font-mono">{f.name}</span>
+                    {f.params && f.params.length > 0 && (
+                      <span className="text-xs text-muted ml-2 font-mono">
+                        ({f.params.map((p) => `${p.name}: ${p.type}`).join(", ")})
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <span className="text-xs text-muted font-mono">{DefLabel({ type: f.type })}</span>
               </div>
@@ -128,26 +246,11 @@ export default function StateVisualizer({ result, costEstimate }: Props) {
         </div>
       )}
 
-      {/* Call graph (simplified) */}
-      {fns.length > 1 && (
+      {/* Call graph */}
+      {callGraph && callGraph.length > 0 && (
         <div>
           <p className="text-xs text-muted font-mono uppercase tracking-wider mb-3">Call Graph</p>
-          <div className="flex flex-wrap gap-4">
-            {fns.map((f, i) => (
-              <div key={f.name} className="flex items-center gap-2">
-                <div className={`px-3 py-1.5 border rounded-sm text-xs font-mono ${
-                  f.type === "public-fn" ? "border-text/40 text-text" :
-                  f.type === "read-only-fn" ? "border-text/20 text-muted" :
-                  "border-text/10 text-muted/60"
-                }`}>
-                  {f.name}
-                </div>
-                {i < fns.length - 1 && (
-                  <span className="text-muted/30 text-xs">—</span>
-                )}
-              </div>
-            ))}
-          </div>
+          <CallGraphSVG nodes={callGraph} />
         </div>
       )}
 
