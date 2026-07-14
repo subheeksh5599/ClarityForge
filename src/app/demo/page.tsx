@@ -53,7 +53,6 @@ function DemoContent() {
   const [renamingFile, setRenamingFile] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [unsavedFiles, setUnsavedFiles] = useState<Set<string>>(new Set());
-  const [useRealVM, setUseRealVM] = useState(true);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const dragRef = { current: false };
   const wallet = useWallet();
@@ -294,7 +293,7 @@ function DemoContent() {
     // ── Clarinet / API mode ──
     setRunning(true); setOutput(null); setTxHash(null);
     try {
-      const endpoint = useRealVM ? "/api/execute" : "/api/analyze";
+      const endpoint = envMode === "clarinet" ? "/api/execute" : "/api/analyze";
       const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
       if (!res.ok) { const err = await res.json().catch(() => ({ error: "Request failed" })); setOutput(`✗ ${err.error || `HTTP ${res.status}`}`); setRunning(false); return; }
       const data = await res.json(); setAnalysisResult(data);
