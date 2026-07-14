@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
+import type { editor } from "monaco-editor";
 import Nav from "../../components/Nav";
 import StateVisualizer from "../../components/StateVisualizer";
 import { TEMPLATES, getTemplate, Template } from "../../lib/clarity/templates";
@@ -43,7 +44,31 @@ function DemoContent() {
   const [renameValue, setRenameValue] = useState("");
   const [unsavedFiles, setUnsavedFiles] = useState<Set<string>>(new Set());
   const [useRealVM, setUseRealVM] = useState(true);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const dragRef = { current: false };
+
+  // ── localStorage persistence ──
+  const STORAGE_KEY = "clarityforge-files";
+
+  // Load saved files on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+      const parsed: FileTab[] = JSON.parse(saved);
+      if (parsed.length > 0) {
+        setFiles(parsed);
+        setActiveFileId(parsed[0].id);
+      }
+    } catch { /* ignore corrupt data */ }
+  }, []);
+
+  // Save files whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(files));
+    } catch { /* quota exceeded — silently ignore */ }
+  }, [files]);
 
   // Mark file as unsaved when code changes from original
   const markUnsaved = (id: string, code: string, original: string) => {
@@ -89,6 +114,47 @@ function DemoContent() {
     setRenamingFile(null);
   };
 
+  const handleDownload = () => {
+    const blob = new Blob([code], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = activeFile.name;
+    a.click();
+    URL.revokeObjectURL(url);
+    markUnsaved(activeFile.id, code, code);
+  };
+
+  const setEditorMarkers = useCallback((diagnostics: { line: number; col: number; message: string; severity: string }[]) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const model = editor.getModel();
+    if (!model) return;
+    const monaco = (window as any).monaco;
+    if (!monaco) return;
+    const markers: editor.IMarkerData[] = diagnostics.map((d) => ({
+      severity: d.severity === "error" ? monaco.MarkerSeverity.Error
+        : d.severity === "warning" ? monaco.MarkerSeverity.Warning
+        : monaco.MarkerSeverity.Info,
+      message: d.message,
+      startLineNumber: d.line,
+      startColumn: d.col,
+      endLineNumber: d.line,
+      endColumn: d.col + 20,
+    }));
+    monaco.editor.setModelMarkers(model, "clarity", markers);
+  }, []);
+
+  const clearEditorMarkers = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const model = editor.getModel();
+    if (!model) return;
+    const monaco = (window as any).monaco;
+    if (!monaco) return;
+    monaco.editor.setModelMarkers(model, "clarity", []);
+  }, []);
+
   const handleRun = async () => {
     setRunning(true); setOutput(null); setTxHash(null);
     try {
@@ -96,6 +162,12 @@ function DemoContent() {
       const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
       if (!res.ok) { const err = await res.json().catch(() => ({ error: "Request failed" })); setOutput(`✗ ${err.error || `HTTP ${res.status}`}`); setRunning(false); return; }
       const data = await res.json(); setAnalysisResult(data);
+      // Push diagnostics to editor markers for red squiggly underlines
+      if (data.diagnostics?.length) {
+        setEditorMarkers(data.diagnostics);
+      } else {
+        clearEditorMarkers();
+      }
       const l: string[] = [];
       l.push(data.valid ? "✓ Analysis complete" : "✗ Errors found");
       if (data.vm) l[0] += ` (${data.vm})`;
@@ -198,6 +270,10 @@ function DemoContent() {
             className={`flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium border border-line ${deploying ? "text-muted" : "text-text hover:bg-text/5"}`}>
             ↑ {deploying ? "…" : "Deploy"}
           </button>
+          <button onClick={handleDownload}
+            className="flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium border border-line text-muted hover:text-text">
+            ↓ Save
+          </button>
           <button onClick={() => setRightPanelOpen(!rightPanelOpen)}
             className="px-2 py-0.5 text-[11px] text-muted hover:text-text font-mono ml-1">{rightPanelOpen ? "◢" : "◰"}</button>
         </div>
@@ -207,6 +283,7 @@ function DemoContent() {
       <div id="ide-container" className="flex-1 flex min-h-0">
         <div style={{ width: rightPanelOpen ? `${splitRatio}%` : "100%" }}>
           <MonacoEditor language="rust" theme="clarityforge" value={code} onChange={(v) => setCode(v || "")}
+            onMount={(editor) => { editorRef.current = editor; }}
             beforeMount={(monaco) => { monaco.editor.defineTheme("clarityforge", { base: "vs-dark", inherit: true, rules: [{ token: "comment", foreground: "555555", fontStyle: "italic" }, { token: "keyword", foreground: "999999" }, { token: "string", foreground: "CCCCCC" }], colors: { "editor.background": "#0A0A0B", "editor.foreground": "#EBEBE5", "editor.lineHighlightBackground": "#111113", "editor.selectionBackground": "#EBEBE515", "editorCursor.foreground": "#EBEBE5", "editorLineNumber.foreground": "#1E1E20", "editorLineNumber.activeForeground": "#6B6B6B", "editorGutter.background": "#0A0A0B" } }); }}
             options={{ fontSize: 14, fontFamily: "'DM Mono', monospace", lineNumbers: "on", minimap: { enabled: false }, scrollBeyondLastLine: false, padding: { top: 16, bottom: 16 }, renderLineHighlight: "line", cursorBlinking: "smooth", overviewRulerLanes: 0, hideCursorInOverviewRuler: true, overviewRulerBorder: false, folding: true, lineNumbersMinChars: 3, automaticLayout: true, scrollbar: { vertical: "auto", horizontal: "auto", verticalScrollbarSize: 6 } }}
             loading={<div className="h-full flex items-center justify-center text-muted text-sm font-mono">…</div>} />

@@ -13,83 +13,43 @@
 </p>
 
 <h1 align="center">ClarityForge</h1>
-<h3 align="center"><em>The Remix of Stacks.<br>Write Clarity. In your browser. No CLI.</em></h3>
+<h3 align="center"><em>A browser playground for trying out Clarity ideas — no setup, no CLI. Graduate to Clarinet when you're ready to build for real.</em></h3>
 
 <p align="center">
-  <strong>Browser-based IDE for Clarity smart contracts.<br>Real tokenizer + AST analyzer + state visualizer + one-click deploy.</strong>
+  <strong>Browser-based editor for Clarity smart contracts.<br>Real tokenizer + AST analyzer + state visualizer + deploy simulation.</strong>
 </p>
 
 <p align="center">
-  <a href="#the-problem">Problem</a> &bull;
-  <a href="#the-solution">Solution</a> &bull;
+  <a href="#why-this-exists">Why</a> &bull;
   <a href="#quick-start">Quick Start</a> &bull;
   <a href="#features">Features</a> &bull;
   <a href="#how-it-works">How It Works</a> &bull;
   <a href="#architecture">Architecture</a> &bull;
+  <a href="#current-limitations">Limitations</a> &bull;
   <a href="#faq">FAQ</a>
 </p>
 
 ---
 
-## The Problem
+## Why This Exists
 
-Stacks has Clarinet — the professional CLI framework for Clarity development. But there's no fast, zero-install way to write and test Clarity code. Every new developer hits the same wall.
+Clarinet is the gold standard for Clarity development — and that's a good thing. It's well-maintained by the Stacks Foundation, battle-tested across thousands of contracts, and the right tool for production work.
 
-| Problem | Impact |
-|---------|--------|
-| **Clarinet requires local install** | `brew install clarinet` + Rust toolchain — 20 minutes before first line of code |
-| **No browser playground exists** | Ethereum has Remix (500K+ monthly users). Stacks has nothing equivalent |
-| **Onboarding takes hours** | New Stacks devs spend their first session installing tooling, not writing contracts |
-| **No visual contract breakdown** | Devs read raw Clarity source to understand structure — no storage tables, no call graphs |
-| **Template fragmentation** | Reference contracts scattered across docs, GitHub, and Discord — no single curated library |
-| **Previous attempts failed** | clarity-wasm (moved), clarity-js-sdk (archived 2023), clarity-lsp (archived 2023, merged) — nobody cracked browser Clarity |
+But there's a missing step before Clarinet: the "I just want to try this" step. Ethereum developers can open Remix in a browser tab and write a contract in seconds. Stacks developers need to install a Rust toolchain first. That initial friction can discourage people from even trying Clarity.
 
----
+We built ClarityForge as a small on-ramp — not a replacement for Clarinet, not a competitor. Just a quick way to experiment with Clarity syntax, browse example contracts, and get a feel for the language before committing to a full local setup.
 
-## The Solution
+### What we learned from previous attempts
 
-ClarityForge is the Remix of Stacks. Open a browser tab, type Clarity, see results in 10 seconds. Graduate to Clarinet when you're ready for production.
+Several smart people have tried to bring Clarity to the browser before us. Their work taught us a lot:
 
-```
-Browser Tab ──> Monaco Editor ──> Clarity Analyzer ──> Visual Breakdown
-                      │                   │                  │
-              6 contract           Real tokenizer       State tables
-              templates            + AST parser         + call graph
-```
+| Project | What they tried | What we learned |
+|---------|----------------|-----------------|
+| **clarity-wasm** | Compile the full Clarity VM (30K+ lines of Rust) to WebAssembly | Tying to the Rust VM's upstream is fragile — it broke on nearly every core change |
+| **clarity-js-sdk** | Wrap the VM in a JavaScript API layer (413 commits over 5 years) | Wrapping a moving target is exhausting — eventually archived |
+| **clarity-lsp** | Build language server protocol support for Clarity | Merged into Clarinet — the right call, consolidation is better than fragmentation |
 
-### What you get
-
-- **Zero-install editor** — Monaco-powered with Clarity syntax highlighting and autocomplete
-- **Real analysis engine** — Tokenizer + AST analyzer written in TypeScript. No WASM, no Clarinet dependency, no server-side VM
-- **State visualizer** — Contracts rendered as token cards, function lists, storage tables, and call graphs. Switch between Visual and Text views
-- **6 production templates** — SIP-010 Token, SIP-009 NFT, DAO Governor, AMM Pool, Staking, Multi-Sig Wallet — one click to open in editor
-- **One-click deploy simulation** — Validates contract, generates Stacks-format tx hash and contract ID, links to explorer
-- **Shareable URLs** — `/demo?template=dao` opens that template directly. Send links, not screenshots
-- **30+ Clarity keywords** — Tokenizer recognizes every define-* form, ft/nft builtins, map/var operations, control flow, and type constructors
-
----
-
-## The Remix/Hardhat Analogy
-
-| | Ethereum | Stacks |
-|---|---|---|
-| **Professional framework** | Hardhat | Clarinet |
-| **Browser IDE** | Remix (500K users/mo) | **ClarityForge** ← this |
-
-Remix didn't replace Hardhat. It complemented it. ClarityForge doesn't replace Clarinet — it feeds developers into it.
-
-### What we learned from the failures
-
-Hiro (funded company) tried clarity-wasm, clarity-js-sdk, and clarity-lsp. All were archived or merged. Why?
-
-- **clarity-wasm** — Clarity VM is 30K+ lines of Rust tied to chain state. WASM compilation broke on every upstream change
-- **clarity-js-sdk** — Wrapped a moving target in JavaScript. 413 commits, archived after 5 years
-- **clarity-lsp** — Merged into Clarinet (the right call — consolidation)
-
-**ClarityForge avoids all three failure modes:**
-1. No VM dependency — pure TypeScript analysis, no chain state required
-2. No upstream tracking — our analyzer is self-contained
-3. Complements Clarinet — doesn't compete with it
+Our approach is much narrower: we do static analysis (tokenization, syntax validation, definition extraction) in pure TypeScript. No VM dependency, no chain state, no upstream tracking. It can't execute code — only Clarinet can do that properly. But it can tell you whether your syntax is valid, show you the structure, and give you a rough idea of what you're building.
 
 ---
 
@@ -110,9 +70,9 @@ Open [http://localhost:3000](http://localhost:3000). Click **Open the editor** t
 
 ### In-browser Clarity editor
 
-Monaco editor with Clarity-customized theme. Real-time editing. Six contract templates pre-loaded.
+Monaco editor with syntax highlighting for Clarity. Six example contracts included to get started.
 
-### Live analysis engine
+### Static analysis
 
 ```
 POST /api/analyze
@@ -132,14 +92,14 @@ POST /api/analyze
 
 ### State visualizer
 
-Two views. Toggle between them:
+Two views for understanding your contract structure:
 
 | Visual | Text |
 |--------|------|
-| Token cards with icons | Raw diagnostic output |
+| Token cards | Raw diagnostic output |
 | Function list (public/read-only/private) | Line-by-line errors |
 | Storage tables (data vars + maps) | Stats summary |
-| Call graph with typed nodes | Cost estimate |
+| Simple call graph | Cost estimate |
 
 ### Deploy simulation
 
@@ -155,31 +115,35 @@ POST /api/deploy
   }
 ```
 
-Rejects invalid contracts with specific diagnostics. Links to explorer for deployed contracts.
+Note: this is a simulation for prototyping. Real wallet-connected deployment requires additional work (see limitations below).
 
-### Template library
+### Optional Clarinet integration
 
-| Template | Type | Lines | Functions | Data Vars | Maps |
-|----------|------|-------|-----------|-----------|------|
-| SIP-010 Token | Fungible Token | 12 | 2 | 0 | 0 |
-| SIP-009 NFT | NFT | 12 | 2 | 1 | 0 |
-| DAO Governor | Governance | 25 | 2 | 1 | 2 |
-| AMM Pool | DeFi | 22 | 2 | 2 | 1 |
-| Staking | DeFi | 25 | 2 | 2 | 1 |
-| Multi-Sig | Security | 22 | 2 | 2 | 2 |
+If you have Clarinet installed locally at `~/.local/bin/clarinet`, ClarityForge can pass your code through `clarinet check` for real validation. The static analyzer runs as a fallback when Clarinet isn't available.
+
+### Example contracts
+
+| Template | Lines | What it shows |
+|----------|-------|--------------|
+| SIP-010 Token | 12 | Fungible token basics |
+| SIP-009 NFT | 12 | NFT minting and transfers |
+| DAO Governor | 25 | Maps, proposals, voting |
+| AMM Pool | 22 | Trait references, pool logic |
+| Staking | 25 | Time-based reward mechanics |
+| Multi-Sig | 22 | Owner maps and signature tracking |
 
 ---
 
 ## How It Works
 
-### Clarity analysis pipeline
+### Analysis pipeline
 
 ```
 Source Code
     │
     ▼
 Tokenizer (src/lib/clarity/tokenizer.ts)
-  • 30+ Clarity keywords recognized
+  • 50+ Clarity keywords recognized
   • Comments, strings, uints, principals, types
   • Parentheses tracking
     │
@@ -188,21 +152,20 @@ AST Analyzer (src/lib/clarity/analyzer.ts)
   • Balanced parentheses validation
   • Definition extraction (tokens, NFTs, functions, maps, vars)
   • Diagnostic generation with line numbers
-  • Cost estimation based on code complexity
+  • Simple cost estimation
     │
     ▼
 API Response (/api/analyze)
   • Structured JSON with definitions, stats, diagnostics
-  • Ready for state visualizer consumption
 ```
 
-### Security design
+### Security considerations
 
-| Concern | Mitigation |
-|---------|-----------|
-| Code injection | Pure parsing — zero eval, zero shell, zero file I/O |
-| Resource exhaustion | 100KB input limit, 5-second timeout |
-| CSRF | Origin validation on all POST endpoints |
+| Concern | Approach |
+|---------|----------|
+| Code injection | Pure parsing — no eval, no shell, no file I/O |
+| Resource exhaustion | 100KB input limit, timeout on requests |
+| CSRF | Origin validation on POST endpoints |
 | Content-type attacks | Strict JSON enforcement |
 
 ---
@@ -212,82 +175,107 @@ API Response (/api/analyze)
 ```
 src/
 ├── app/
-│   ├── page.tsx                  Landing — Fig-labeled, statement-driven
+│   ├── page.tsx                  Landing page
 │   ├── demo/page.tsx             Monaco editor + Run/Deploy + tabs
-│   ├── templates/page.tsx        6 templates → opens demo pre-loaded
+│   ├── templates/page.tsx        Example contract browser
 │   ├── layout.tsx                Root layout, fonts, OG metadata
 │   ├── globals.css               2-color system (#0C0C0D + #EBEBE5)
-│   ├── og/route.tsx              Dynamic OG image for social cards
+│   ├── og/route.tsx              Dynamic OG image
 │   └── api/
-│       ├── analyze/route.ts      POST — validate + analyze Clarity
-│       └── deploy/route.ts       POST — validate + simulate deploy
+│       ├── analyze/route.ts      POST — static analysis
+│       ├── deploy/route.ts       POST — deploy simulation
+│       └── execute/route.ts      POST — Clarinet check (optional)
 ├── lib/clarity/
-│   ├── tokenizer.ts              Clarity tokenizer (30+ keywords)
+│   ├── tokenizer.ts              Clarity tokenizer (50+ keywords)
 │   ├── analyzer.ts               AST analysis + diagnostics
-│   └── templates.ts              6 full Clarity contracts
+│   ├── executor.ts               Function execution simulator
+│   └── templates.ts              Example contracts
 └── components/
-    ├── Nav.tsx                   Fixed nav with scroll progress
+    ├── Nav.tsx                   Fixed navigation
     ├── Footer.tsx                Minimal footer
     ├── FadeIn.tsx                GSAP scroll reveal
-    └── StateVisualizer.tsx       Visual contract breakdown
+    └── StateVisualizer.tsx       Contract structure viewer
 ```
 
-### Page routes
+### Routes
 
-| Route | Purpose |
-|-------|---------|
-| `/` | Landing — one statement, Fig-labeled sections |
-| `/demo` | Editor with Run/Deploy and Visual/Text tabs |
-| `/demo?template=dao` | Open specific template directly |
-| `/templates` | All 6 contracts with descriptions |
+| Route | What it does |
+|-------|-------------|
+| `/` | Landing page |
+| `/demo` | Editor with Run/Deploy and Visual/Interact/Text tabs |
+| `/demo?template=dao` | Open a specific example contract |
+| `/templates` | Browse all example contracts |
 | `/api/analyze` | POST — analyze Clarity code |
 | `/api/deploy` | POST — simulate testnet deployment |
+| `/api/execute` | POST — run through Clarinet if available |
 | `/og` | Dynamic OG image for social sharing |
+
+---
+
+## Current Limitations
+
+We want to be honest about what this project does and doesn't do. It's a prototype, and there are known gaps:
+
+1. **No real execution** — We do static analysis only. We can't run your contract against chain state. For that, use Clarinet's console/VM.
+
+2. **Deploy is simulated** — The deploy endpoint generates realistic-looking hashes but doesn't broadcast to any network. Real wallet-connected deployment (Leather/Xverse) is not yet implemented.
+
+3. **No persistent storage** — Contracts you write live only in the browser tab. There's no backend, no database, no user accounts. Refresh the page and unsaved work is gone.
+
+4. **No test framework** — You can't write or run tests in the browser. Clarinet's test harness remains the right tool for that.
+
+5. **Static analysis is basic** — We check parentheses balance, extract definitions, and catch obvious issues. We don't do type-checking, trait resolution, or deep semantic validation.
+
+6. **The execution simulator is hardcoded** — The interactive function executor in the "Interact" tab only works for the specific function names from example contracts. It doesn't parse your custom code.
+
+7. **No export/download** — You can't download contracts as `.clar` files from the browser. Copy-paste works, but that's not great.
+
+8. **No real call graph** — The "Call Graph" view is a flat list of function names, not an actual dependency graph.
+
+9. **Desktop-focused** — The editor works on mobile but isn't optimized for it.
+
+If any of these matter to you, contributions are very welcome — see the open issues.
 
 ---
 
 ## FAQ
 
 <details>
-<summary><strong>Does ClarityForge actually execute Clarity code?</strong></summary>
+<summary><strong>Does ClarityForge execute Clarity code?</strong></summary>
 
-No. ClarityForge performs static analysis — tokenization, syntax validation, definition extraction, and diagnostics. It does not execute code against chain state. For full execution, use Clarinet's VM.
+No. It performs static analysis — tokenization, syntax validation, and definition extraction. It does not execute code against chain state. For execution, use Clarinet.
 </details>
 
 <details>
 <summary><strong>Why not use clarity-wasm for real execution?</strong></summary>
 
-clarity-wasm (stx-labs/clarity-wasm, 26★) compiles Clarity to WebAssembly. It's an official project but ties directly to stacks-core's Rust VM — meaning it breaks on upstream changes. Our pure-TypeScript approach is simpler, self-contained, and never needs upstream sync. For the Remix comparison: Remix also doesn't embed geth — it uses a lightweight simulation layer.
+clarity-wasm ties directly to the stacks-core Rust VM, which means it needs constant updates to track upstream changes. We chose a simpler static-analysis approach that's self-contained. For the browser use case (experimenting, learning, prototyping), static analysis covers most of what you need — and Clarinet is always there when you need the real VM.
 </details>
 
 <details>
 <summary><strong>How does this compare to the Stacks Explorer Sandbox?</strong></summary>
 
-The Explorer Sandbox requires wallet connection and is designed for deployment. ClarityForge requires no wallet and is designed for prototyping. Different use cases, complementary tools.
+The Explorer Sandbox requires wallet connection and is designed for deployment. ClarityForge requires no wallet and is designed for quick experimentation. Different tools, different use cases.
 </details>
 
 <details>
-<summary><strong>Can I use this instead of Clarinet?</strong></summary>
+<summary><strong>Should I use this instead of Clarinet?</strong></summary>
 
-For learning and prototyping — yes. For production contracts with full test suites — use Clarinet. ClarityForge is the on-ramp. Clarinet is the highway.
+For trying things out and learning — sure. For production contracts — use Clarinet. ClarityForge is a playground, not a replacement.
 </details>
 
 <details>
-<summary><strong>Is the deploy feature real?</strong></summary>
+<summary><strong>How do I add my own example contracts?</strong></summary>
 
-The deploy endpoint simulates testnet deployment. It validates the contract, generates a realistic Stacks-format transaction hash and contract ID, and provides an explorer link. Real wallet-connected deployment is planned for Phase 2.
+Edit `src/lib/clarity/templates.ts` — each entry needs a slug, name, description, tag, and code. They'll appear automatically in the editor and templates page.
 </details>
 
 <details>
-<summary><strong>What Clarity syntax does the analyzer support?</strong></summary>
+<summary><strong>What Clarity syntax does the analyzer understand?</strong></summary>
 
-All define-* forms (fungible-token, non-fungible-token, public, read-only, private, data-var, map, constant, trait), all ft-* and nft-* builtins, map operations, var operations, control flow (let, begin, if, match), error handling (try!, unwrap!, asserts!), and type annotations.
-</details>
-
-<details>
-<summary><strong>Can I add my own templates?</strong></summary>
-
-Yes. Edit `src/lib/clarity/templates.ts` and add entries following the `Template` interface. Templates appear automatically in the editor and templates page.
+All `define-*` forms (fungible-token, non-fungible-token, public, read-only, private, data-var, map, constant, trait), all `ft-*` and `nft-*` builtins, map operations, var operations, control flow (`let`, `begin`, `if`, `match`), error handling (`try!`, `unwrap!`, `asserts!`), and type annotations.
 </details>
 
 ---
+
+Built with curiosity about Clarity and respect for the tools that came before it.

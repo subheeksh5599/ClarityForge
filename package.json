@@ -25,10 +25,8 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   },
-  "description": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).",
-  "main": "index.js",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "description": "Browser-based editor and static analyzer for Clarity smart contracts. A playground for experimenting with Stacks development before graduating to Clarinet.",
+  "author": "subheeksh5599",
+  "license": "MIT",
   "type": "module"
 }
