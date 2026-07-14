@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "./ThemeProvider";
+import { useWallet } from "./WalletProvider";
 
 export default function Nav() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const wallet = useWallet();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-bg/80 backdrop-blur-sm">
@@ -16,14 +18,6 @@ export default function Nav() {
         </Link>
 
         <div className="flex items-center gap-6">
-          <Link
-            href="/demo"
-            className={`text-sm transition-colors ${
-              pathname === "/demo" ? "text-text" : "text-muted hover:text-text"
-            }`}
-          >
-            Demo
-          </Link>
           <Link
             href="/templates"
             className={`text-sm transition-colors ${
@@ -39,12 +33,18 @@ export default function Nav() {
           >
             {theme === "dark" ? "☀" : "☾"}
           </button>
-          <Link
-            href="/demo"
-            className="text-sm text-text hover:text-muted transition-colors"
-          >
-            Try it →
-          </Link>
+          {wallet.connected ? (
+            <span className="text-xs text-muted font-mono" title={wallet.address || ""}>
+              ◉ {wallet.address?.slice(0, 8)}…
+            </span>
+          ) : (
+            <Link
+              href="/demo"
+              className="text-sm text-text hover:text-muted transition-colors"
+            >
+              Try it →
+            </Link>
+          )}
         </div>
       </div>
     </nav>
