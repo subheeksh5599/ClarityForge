@@ -8,7 +8,7 @@ import Nav from "../../components/Nav";
 import StateVisualizer from "../../components/StateVisualizer";
 import AccountPanel from "../../components/AccountPanel";
 import VmTrace from "../../components/VmTrace";
-import { useWallet } from "../../components/WalletProvider";
+import { useWallet, deployContract } from "../../components/WalletProvider";
 import { useTheme } from "../../components/ThemeProvider";
 import { TEMPLATES, getTemplate, Template } from "../../lib/clarity/templates";
 import { getExecutableFunctions, getDefaultParams, executeFunction, ExecutionResult } from "../../lib/clarity/executor";
@@ -336,13 +336,13 @@ function DemoContent() {
     // If wallet is connected, do real deployment
     if (wallet.connected) {
       try {
-        const { request } = await import("@stacks/connect");
         const contractName = activeFile.name.replace(".clar", "").replace(/[^a-zA-Z0-9_-]/g, "-");
-        const result = await request("stx_deployContract", {
-          name: contractName,
-          clarityCode: code,
-          network: "testnet",
-        });
+        const result = await deployContract(code, contractName);
+        if (result.error) {
+          setOutput(`✗ ${result.error}`);
+          setDeploying(false);
+          return;
+        }
         if (result.txid) {
           const deployerAddr = wallet.address || "ST1...";
           const contractId = `${deployerAddr}.${contractName}`;
