@@ -5,7 +5,7 @@
 &nbsp;
 
 [![Live demo](https://img.shields.io/badge/●_live-clarityforge--sigma.vercel.app-5546FF)](https://clarityforge-sigma.vercel.app)
-[![Hyperframes demo](https://img.shields.io/badge/▶-hyperframes%20demo-8b7dff)](https://x.com/KomariS18774)
+[![Demo video](https://img.shields.io/badge/▶-demo%20video-8b7dff)](https://x.com/KomariS18774/status/2077757620262486182)
 [![GitHub](https://img.shields.io/badge/GitHub-subheeksh5599/ClarityForge-0C0C0D)](https://github.com/subheeksh5599/ClarityForge)
 [![License: MIT](https://img.shields.io/badge/license-MIT-5546FF.svg)](LICENSE)
 [![Stacks](https://img.shields.io/badge/Stacks-testnet-5546FF)](https://stacks.co)
