@@ -88,7 +88,7 @@ export const TEMPLATES: Template[] = [
 
 (define-public (vote (proposal-id uint) (support bool))
   (begin
-    (asserts! (map-get? votes { proposal-id: proposal-id, voter: tx-sender })
+    (asserts! (is-none (map-get? votes { proposal-id: proposal-id, voter: tx-sender }))
       (err u1))
     (map-set votes { proposal-id: proposal-id, voter: tx-sender } true)
     (ok true)))`,
