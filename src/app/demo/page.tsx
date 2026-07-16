@@ -498,20 +498,23 @@ function DemoContent() {
           <MonacoEditor language="clarity" theme={theme === "dark" ? "clarityforge-dark" : "clarityforge-light"} value={code} onChange={(v) => setCode(v || "")}
             onMount={(editor) => { editorRef.current = editor; }}
             beforeMount={(monaco) => {
-              // Register Clarity language
-              monaco.languages.register({ id: "clarity", extensions: [".clar"], aliases: ["Clarity"] });
-              monaco.languages.setMonarchTokensProvider("clarity", CLARITY_LANGUAGE);
-              monaco.languages.registerCompletionItemProvider("clarity", {
-                provideCompletionItems: () => ({
-                  suggestions: CLARITY_COMPLETIONS.map((c) => ({
-                    label: c.label,
-                    kind: monaco.languages.CompletionItemKind.Keyword,
-                    insertText: c.insertText,
-                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                    detail: c.detail,
-                  })),
-                }),
-              });
+              // Register Clarity language (guarded against HMR re-registration)
+              const existing = monaco.languages.getLanguages().find((l: { id: string }) => l.id === "clarity");
+              if (!existing) {
+                monaco.languages.register({ id: "clarity", extensions: [".clar"], aliases: ["Clarity"] });
+                monaco.languages.setMonarchTokensProvider("clarity", CLARITY_LANGUAGE);
+                monaco.languages.registerCompletionItemProvider("clarity", {
+                  provideCompletionItems: () => ({
+                    suggestions: CLARITY_COMPLETIONS.map((c) => ({
+                      label: c.label,
+                      kind: monaco.languages.CompletionItemKind.Keyword,
+                      insertText: c.insertText,
+                      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                      detail: c.detail,
+                    })),
+                  }),
+                });
+              }
               // Dark theme
               monaco.editor.defineTheme("clarityforge-dark", {
                 base: "vs-dark", inherit: true,

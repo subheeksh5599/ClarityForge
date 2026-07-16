@@ -56,9 +56,14 @@ export async function POST(req: NextRequest) {
     `[project]\nname = "check"\n\n[contracts.contract]\npath = "contract.clar"\n`);
   writeFileSync(join(tmpDir, "settings", "Devnet.toml"), DEVNET_TOML);
 
-  // If a specific function is requested, generate a test file (safe: fn is validated)
+  // If a specific function is requested, generate a test file (fn + params validated)
   if (body.fn && /^[a-zA-Z][a-zA-Z0-9_\-!?]*$/.test(body.fn)) {
-    const safeParams = (body.params || []).map((p: string) => JSON.stringify(p)).join(" ");
+    // Validate params: allow Clarity literals (uints, principals, bools, strings) but strip dangerous chars
+    const safeParams = (body.params || []).map((p: string) => {
+      // Only allow characters valid in Clarity literals: alphanumeric, hex, Stacks address chars, quotes, parens, hyphens
+      const sanitized = p.replace(/[^a-zA-Z0-9\s_\-!?+\/*=<>\\.'\":;()\[\]{}#]/g, "");
+      return sanitized || "u0"; // fallback to zero if completely sanitized away
+    }).join(" ");
     const testCode = `(define-public (test-execute)
   (begin
     (contract-call? .contract ${body.fn} ${safeParams})

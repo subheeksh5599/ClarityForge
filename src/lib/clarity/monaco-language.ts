@@ -91,7 +91,6 @@ const CLARITY_LANGUAGE: languages.IMonarchLanguage = {
   autoClosingPairs: [
     { open: "(", close: ")" },
     { open: '"', close: '"' },
-    { open: "u", close: "" },
   ],
 
   surroundingPairs: [
