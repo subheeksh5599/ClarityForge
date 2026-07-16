@@ -36,7 +36,7 @@ export const TEMPLATES: Template[] = [
     code: `;; SIP-009 NFT Collection
 ;; Mint unique digital assets on Stacks
 
-(define-non-fungible-token nft-collection)
+(define-non-fungible-token nft-collection uint)
 
 (define-data-var last-id uint u0)
 
@@ -114,12 +114,12 @@ export const TEMPLATES: Template[] = [
   lp-supply: uint
 })
 
-(define-public (create-pool (token-x (trait-reference sip-010)) (token-y (trait-reference sip-010)))
+(define-public (create-pool (token-x principal) (token-y principal))
   (let ((id (+ (var-get pool-count) u1)))
     (var-set pool-count id)
     (map-set pools id {
-      token-x: (contract-of token-x),
-      token-y: (contract-of token-y),
+      token-x: token-x,
+      token-y: token-y,
       reserve-x: u0,
       reserve-y: u0,
       lp-supply: u0
@@ -153,7 +153,7 @@ export const TEMPLATES: Template[] = [
     (var-set total-staked (+ (var-get total-staked) amount))
     (map-set stakes tx-sender {
       amount: amount,
-      since: block-height,
+      since: stacks-block-height,
       rewards: u0
     })
     (ok true)))
