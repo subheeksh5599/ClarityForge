@@ -16,6 +16,7 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://clarityforge-sigma.vercel.app"),
   title: "ClarityForge — Browser IDE for Clarity",
   description:
     "Browser-based IDE for Clarity smart contracts. Write, simulate, and deploy on Stacks — no CLI required.",

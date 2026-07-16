@@ -56,12 +56,12 @@ export async function POST(req: NextRequest) {
     `[project]\nname = "check"\n\n[contracts.contract]\npath = "contract.clar"\n`);
   writeFileSync(join(tmpDir, "settings", "Devnet.toml"), DEVNET_TOML);
 
-  // If a specific function is requested, generate a test file
-  if (body.fn) {
-    const params = (body.params || []).join(" ");
+  // If a specific function is requested, generate a test file (safe: fn is validated)
+  if (body.fn && /^[a-zA-Z][a-zA-Z0-9_\-!?]*$/.test(body.fn)) {
+    const safeParams = (body.params || []).map((p: string) => JSON.stringify(p)).join(" ");
     const testCode = `(define-public (test-execute)
   (begin
-    (contract-call? .contract ${body.fn} ${params})
+    (contract-call? .contract ${body.fn} ${safeParams})
   )
 )
 

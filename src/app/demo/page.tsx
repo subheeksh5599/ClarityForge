@@ -17,6 +17,7 @@ import {
   createVmState, initStateFromContract, executeInVm,
   type VmState, type VmResult, type SimAccount
 } from "../../lib/clarity/vm";
+import { CLARITY_LANGUAGE, CLARITY_COMPLETIONS } from "../../lib/clarity/monaco-language";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -139,8 +140,9 @@ function DemoContent() {
   };
 
   const switchTemplate = (t: Template) => {
-    setFiles((prev) => [...prev, { id: nextFileId(), name: `${t.slug}.clar`, code: t.code }]);
-    setActiveFileId(files[files.length - 1]?.id ?? "");
+    const newFile: FileTab = { id: nextFileId(), name: `${t.slug}.clar`, code: t.code };
+    setFiles((prev) => [...prev, newFile]);
+    setActiveFileId(newFile.id);
     setViewMode("visual");
   };
 
@@ -493,9 +495,23 @@ function DemoContent() {
       {/* Editor + Panel */}
       <div id="ide-container" className="flex-1 flex min-h-0">
         <div style={{ width: rightPanelOpen ? `${splitRatio}%` : "100%" }}>
-          <MonacoEditor language="rust" theme={theme === "dark" ? "clarityforge-dark" : "clarityforge-light"} value={code} onChange={(v) => setCode(v || "")}
+          <MonacoEditor language="clarity" theme={theme === "dark" ? "clarityforge-dark" : "clarityforge-light"} value={code} onChange={(v) => setCode(v || "")}
             onMount={(editor) => { editorRef.current = editor; }}
             beforeMount={(monaco) => {
+              // Register Clarity language
+              monaco.languages.register({ id: "clarity", extensions: [".clar"], aliases: ["Clarity"] });
+              monaco.languages.setMonarchTokensProvider("clarity", CLARITY_LANGUAGE);
+              monaco.languages.registerCompletionItemProvider("clarity", {
+                provideCompletionItems: () => ({
+                  suggestions: CLARITY_COMPLETIONS.map((c) => ({
+                    label: c.label,
+                    kind: monaco.languages.CompletionItemKind.Keyword,
+                    insertText: c.insertText,
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    detail: c.detail,
+                  })),
+                }),
+              });
               // Dark theme
               monaco.editor.defineTheme("clarityforge-dark", {
                 base: "vs-dark", inherit: true,

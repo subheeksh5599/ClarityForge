@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript" alt="TypeScript">
   <img src="https://img.shields.io/badge/Tailwind-4-06B6D4?style=flat-square&logo=tailwindcss" alt="Tailwind">
   <img src="https://img.shields.io/badge/Monaco-Editor-007ACC?style=flat-square&logo=visualstudio" alt="Monaco">
-  <img src="https://img.shields.io/badge/GSAP-ScrollTrigger-88CE02?style=flat-square&logo=greensock" alt="GSAP">
+  <img src="https://img.shields.io/badge/Clarinet-Optional-5546FF?style=flat-square" alt="Clarinet">
 </p>
 
 <h1 align="center">ClarityForge</h1>
@@ -189,12 +189,18 @@ src/
 │   ├── tokenizer.ts              Clarity tokenizer (50+ keywords)
 │   ├── analyzer.ts               AST analysis + diagnostics
 │   ├── executor.ts               Function execution simulator
-│   └── templates.ts              Example contracts
+│   ├── vm.ts                     Stateful browser VM (like Remix VM)
+│   ├── templates.ts              Example contracts
+│   └── monaco-language.ts        Monaco language definition + autocomplete
 └── components/
-    ├── Nav.tsx                   Fixed navigation
+    ├── Nav.tsx                   Fixed navigation + wallet connect
     ├── Footer.tsx                Minimal footer
-    ├── FadeIn.tsx                GSAP scroll reveal
-    └── StateVisualizer.tsx       Contract structure viewer
+    ├── StateVisualizer.tsx       Contract structure viewer + call graph
+    ├── ClientProviders.tsx       Theme + wallet context wrapper
+    ├── ThemeProvider.tsx         Dark/light mode with persistence
+    ├── WalletProvider.tsx        Native Stacks wallet (SIP-030)
+    ├── AccountPanel.tsx          Pre-funded test accounts
+    └── VmTrace.tsx               VM execution trace viewer
 ```
 
 ### Routes

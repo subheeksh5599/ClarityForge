@@ -150,13 +150,12 @@ export const TEMPLATES: Template[] = [
 
 (define-public (stake (amount uint))
   (begin
-    (try! (ft-transfer? my-token amount tx-sender (as-contract tx-sender)))
+    (var-set total-staked (+ (var-get total-staked) amount))
     (map-set stakes tx-sender {
       amount: amount,
       since: block-height,
       rewards: u0
     })
-    (var-set total-staked (+ (var-get total-staked) amount))
     (ok true)))
 
 (define-public (unstake (amount uint))
