@@ -36,8 +36,7 @@ export interface AnalysisResult {
 // Looks for (param-name param-type) pairs inside the function signature parens
 function extractFnParams(tokens: Token[], startIdx: number): ParamDef[] {
   const params: ParamDef[] = [];
-  let i = startIdx;
-  // Skip the function name token and opening paren
+  // Find opening paren after function name
   // Pattern: keyword fn-name ( param-name param-type ) ( param-name param-type ) ... )
   // We're positioned at the keyword, need to skip to first param list
   
