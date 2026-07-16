@@ -32,65 +32,66 @@ export interface AnalysisResult {
   };
 }
 
-// Extract parameters from tokens after a function definition keyword
-// Looks for (param-name param-type) pairs inside the function signature parens
+// Extract parameters from a function definition.
+// Clarity signatures look like: (define-public (fn-name (p1 t1) (p2 t2)) body...)
+// The FIRST paren after the keyword wraps the function name + its parameter list;
+// each parameter is a nested (name type) paren inside that wrapper.
 function extractFnParams(tokens: Token[], startIdx: number): ParamDef[] {
   const params: ParamDef[] = [];
-  // Find opening paren after function name
-  // Pattern: keyword fn-name ( param-name param-type ) ( param-name param-type ) ... )
-  // We're positioned at the keyword, need to skip to first param list
-  
-  // Find opening paren after function name
-  let parenDepth = 0;
-  let inParamList = false;
-  let currentParam: Partial<ParamDef> = {};
-  
-  for (let j = startIdx; j < tokens.length && j < startIdx + 30; j++) {
+
+  // Locate the signature-wrapper paren: the first "(" after the define-* keyword.
+  let j = startIdx + 1;
+  while (j < tokens.length && tokens[j].type !== "lparen") j++;
+  if (j >= tokens.length) return params;
+
+  j++; // step inside the signature wrapper
+
+  // Skip the function name (first token inside the wrapper that isn't a paren).
+  if (j < tokens.length && tokens[j].type !== "lparen" && tokens[j].type !== "rparen") j++;
+
+  let depth = 1; // we are inside the signature wrapper
+  while (j < tokens.length && depth > 0) {
     const t = tokens[j];
-    
+
+    if (t.type === "rparen") { depth--; j++; continue; }
+
     if (t.type === "lparen") {
-      parenDepth++;
-      if (parenDepth === 2) {
-        // This is the start of the function body, stop looking for params
-        // Actually params are in the FIRST level of parens after fn name
-        // Pattern: define-public ( fn-name (param type) (param type) ) body...
+      // Parse a single parameter list: (name type...)
+      j++;
+      let pd = 1;
+      let name: string | undefined;
+      const typeParts: string[] = [];
+      while (j < tokens.length && pd > 0) {
+        const pt = tokens[j];
+        if (pt.type === "lparen") { pd++; typeParts.push("("); j++; continue; }
+        if (pt.type === "rparen") {
+          pd--;
+          if (pd === 0) { j++; break; }
+          typeParts.push(")");
+          j++;
+          continue;
+        }
+        if (name === undefined) {
+          name = pt.value;
+        } else {
+          typeParts.push(pt.value);
+        }
+        j++;
       }
-    }
-    if (t.type === "rparen") {
-      parenDepth--;
-      if (parenDepth === 0 && inParamList) {
-        // End of function signature
-        break;
+      if (name) {
+        const type = typeParts
+          .join(" ")
+          .replace(/\(\s+/g, "(")
+          .replace(/\s+\)/g, ")")
+          .trim();
+        params.push({ name, type: type || "unknown" });
       }
-    }
-    
-    // We're looking for (name type) pairs in the param section
-    // The first lparen after the function keyword+name starts the overall signature
-    // Inside, each (name type) is a parameter
-    if (t.type === "lparen" && parenDepth === 1) {
-      inParamList = true;
-      currentParam = {};
       continue;
     }
-    
-    if (t.type === "rparen" && inParamList) {
-      if (currentParam.name) {
-        params.push({ name: currentParam.name, type: currentParam.type || "unknown" });
-      }
-      inParamList = false;
-      currentParam = {};
-      continue;
-    }
-    
-    if (inParamList && (t.type === "identifier" || t.type === "type" || t.type === "keyword")) {
-      if (!currentParam.name) {
-        currentParam.name = t.value;
-      } else if (!currentParam.type) {
-        currentParam.type = t.value;
-      }
-    }
+
+    j++;
   }
-  
+
   return params;
 }
 
