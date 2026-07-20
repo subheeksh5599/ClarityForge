@@ -564,6 +564,95 @@ export const TEMPLATES: Template[] = [
     (map-set schedules schedule-id (merge s { revoked: true }))
     (ok true)))`,
   },
+  {
+    slug: "name-registry",
+    name: "Name Registry (BNS)",
+    description: "Register, transfer, and resolve on-chain names. BNS-style namespace system.",
+    tag: "Identity",
+    code: `;; On-Chain Name Registry
+;; Register human-readable names, transfer ownership, resolve to principals.
+;; Inspired by BNS (Bitcoin Name System) — namespace → name → owner mapping.
+
+(define-constant err-name-not-found (err u404))
+(define-constant err-name-taken (err u100))
+(define-constant err-name-too-short (err u101))
+(define-constant err-name-too-long (err u102))
+(define-constant err-not-owner (err u103))
+(define-constant err-invalid-namespace (err u104))
+(define-constant err-unauthorized (err u105))
+
+(define-data-var registration-fee uint u100000)
+
+(define-map namespaces (string-ascii 32) principal)
+
+(define-map names { namespace: (string-ascii 32), name: (string-ascii 64) } {
+  owner: principal,
+  target: principal,
+  registered-at: uint,
+  expires-at: uint
+})
+
+(define-read-only (resolve (namespace (string-ascii 32)) (name (string-ascii 64)))
+  (match (map-get? names { namespace: namespace, name: name })
+    record (ok (get target record))
+    err-name-not-found))
+
+(define-read-only (get-owner (namespace (string-ascii 32)) (name (string-ascii 64)))
+  (match (map-get? names { namespace: namespace, name: name })
+    record (ok (get owner record))
+    err-name-not-found))
+
+(define-read-only (get-name-info (namespace (string-ascii 32)) (name (string-ascii 64)))
+  (ok (map-get? names { namespace: namespace, name: name })))
+
+(define-read-only (namespace-exists (ns (string-ascii 32)))
+  (ok (is-some (map-get? namespaces ns))))
+
+(define-public (claim-namespace (ns (string-ascii 32)))
+  (begin
+    (asserts! (>= (len ns) u3) err-name-too-short)
+    (asserts! (is-none (map-get? namespaces ns)) err-name-taken)
+    (map-set namespaces ns tx-sender)
+    (ok true)))
+
+(define-public (register (namespace (string-ascii 32)) (name (string-ascii 64)) (target principal) (duration-blocks uint))
+  (let ((ns-owner (unwrap! (map-get? namespaces namespace) err-invalid-namespace)))
+    (asserts! (>= (len name) u3) err-name-too-short)
+    (asserts! (<= (len name) u64) err-name-too-long)
+    (asserts! (is-none (map-get? names { namespace: namespace, name: name })) err-name-taken)
+    ;; In production: transfer registration fee to namespace owner
+    (map-set names { namespace: namespace, name: name } {
+      owner: tx-sender,
+      target: target,
+      registered-at: stacks-block-height,
+      expires-at: (+ stacks-block-height duration-blocks)
+    })
+    (ok true)))
+
+(define-public (transfer (namespace (string-ascii 32)) (name (string-ascii 64)) (new-owner principal))
+  (let ((record (unwrap! (map-get? names { namespace: namespace, name: name }) err-name-not-found)))
+    (asserts! (is-eq (get owner record) tx-sender) err-not-owner)
+    (map-set names { namespace: namespace, name: name } (merge record {
+      owner: new-owner
+    }))
+    (ok true)))
+
+(define-public (update-target (namespace (string-ascii 32)) (name (string-ascii 64)) (new-target principal))
+  (let ((record (unwrap! (map-get? names { namespace: namespace, name: name }) err-name-not-found)))
+    (asserts! (is-eq (get owner record) tx-sender) err-not-owner)
+    (map-set names { namespace: namespace, name: name } (merge record {
+      target: new-target
+    }))
+    (ok true)))
+
+(define-public (renew (namespace (string-ascii 32)) (name (string-ascii 64)) (extra-blocks uint))
+  (let ((record (unwrap! (map-get? names { namespace: namespace, name: name }) err-name-not-found)))
+    (asserts! (is-eq (get owner record) tx-sender) err-not-owner)
+    (map-set names { namespace: namespace, name: name } (merge record {
+      expires-at: (+ (get expires-at record) extra-blocks)
+    }))
+    (ok (get expires-at record))))`,
+  },
 ];
 
 export function getTemplate(slug: string): Template | undefined {
