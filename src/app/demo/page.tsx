@@ -209,7 +209,15 @@ function DemoContent() {
   };
 
   const switchTemplate = (t: Template) => {
-    const newFile: FileTab = { id: nextFileId(), name: `${t.slug}.clar`, code: t.code };
+    // Deduplicate filename
+    let baseName = `${t.slug}.clar`;
+    let name = baseName;
+    let counter = 1;
+    while (files.some((f) => f.name === name)) {
+      name = `${t.slug}-${counter}.clar`;
+      counter++;
+    }
+    const newFile: FileTab = { id: nextFileId(), name, code: t.code };
     setFiles((prev) => [...prev, newFile]);
     setActiveFileId(newFile.id);
     setViewMode("visual");
@@ -219,15 +227,28 @@ function DemoContent() {
     if (files.length <= 1) return;
     setFiles((prev) => {
       const next = prev.filter((f) => f.id !== id);
-      if (activeFileId === id) setActiveFileId(next[0]?.id ?? "");
       return next;
     });
+    // Set active ID outside the updater to avoid nested state calls
+    if (activeFileId === id) {
+      const remaining = files.filter((f) => f.id !== id);
+      setActiveFileId(remaining[0]?.id ?? "");
+    }
   };
 
   const addNewFile = () => {
     const name = window.prompt("File name:", "untitled.clar");
     if (!name) return;
-    const f: FileTab = { id: nextFileId(), name: name.endsWith(".clar") ? name : `${name}.clar`, code: ";; New Clarity contract\n" };
+    const resolved = name.endsWith(".clar") ? name : `${name}.clar`;
+    // Deduplicate
+    let finalName = resolved;
+    let counter = 1;
+    while (files.some((f) => f.name === finalName)) {
+      const base = resolved.replace(/\.clar$/, "");
+      finalName = `${base}-${counter}.clar`;
+      counter++;
+    }
+    const f: FileTab = { id: nextFileId(), name: finalName, code: ";; New Clarity contract\n" };
     setFiles((prev) => [...prev, f]);
     setActiveFileId(f.id);
   };
