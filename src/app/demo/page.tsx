@@ -575,7 +575,7 @@ function DemoContent() {
       {/* Editor + Panel */}
       <div id="ide-container" className="flex-1 flex min-h-0">
         <div style={{ width: rightPanelOpen ? `${splitRatio}%` : "100%" }}>
-          <MonacoEditor language="clarity" theme={theme === "dark" ? "clarityforge-dark" : "clarityforge-light"} value={code} onChange={(v) => setCode(v || "")}
+          <MonacoEditor key={activeFileId} language="clarity" theme={theme === "dark" ? "clarityforge-dark" : "clarityforge-light"} value={code} onChange={(v) => setCode(v || "")}
             onMount={(editor) => { handleEditorMount(editor); }}
             beforeMount={(monaco) => {
               // Register Clarity language (guarded against HMR re-registration)
