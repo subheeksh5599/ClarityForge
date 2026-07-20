@@ -142,6 +142,11 @@ export default function Home() {
                 ["amm", "AMM Pool", "Liquidity pools & swaps"],
                 ["staking", "Staking", "Lock tokens, earn rewards"],
                 ["multisig", "Multi-Sig", "Shared treasury custody"],
+                ["escrow", "Escrow", "P2P exchange with arbiter"],
+                ["auction", "English Auction", "Ascending-price bids"],
+                ["crowdfund", "Crowdfunding", "Goal-based fundraising"],
+                ["vesting", "Token Vesting", "Cliff + linear release"],
+                ["name-registry", "Name Registry", "BNS-style names"],
               ].map(([slug, name, desc]) => (
                 <Link key={slug} href={`/demo?template=${slug}`} className="bg-bg p-8 hover:bg-text/[0.02] transition-colors cursor-pointer block">
                   <h3 className="text-lg font-bold mb-1.5">{name}</h3>
