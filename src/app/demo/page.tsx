@@ -18,6 +18,7 @@ import {
   type VmState, type VmResult, type SimAccount
 } from "../../lib/clarity/vm";
 import { CLARITY_LANGUAGE, CLARITY_COMPLETIONS } from "../../lib/clarity/monaco-language";
+import { SkeletonEditor } from "../../components/ui/skeleton";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -568,7 +569,7 @@ function DemoContent() {
               });
             }}
             options={{ fontSize: 14, fontFamily: "'DM Mono', monospace", lineNumbers: "on", minimap: { enabled: false }, scrollBeyondLastLine: false, padding: { top: 16, bottom: 16 }, renderLineHighlight: "line", cursorBlinking: "smooth", overviewRulerLanes: 0, hideCursorInOverviewRuler: true, overviewRulerBorder: false, folding: true, lineNumbersMinChars: 3, automaticLayout: true, scrollbar: { vertical: "auto", horizontal: "auto", verticalScrollbarSize: 6 } }}
-            loading={<div className="h-full flex items-center justify-center text-muted text-sm font-mono">…</div>} />
+            loading={<SkeletonEditor />} />
         </div>
 
         {rightPanelOpen && (
@@ -748,7 +749,7 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
 
 export default function Demo() {
   return (
-    <Suspense fallback={<div className="h-svh flex items-center justify-center text-muted text-sm bg-surface">…</div>}>
+    <Suspense fallback={<SkeletonEditor />}>
       <DemoContent />
     </Suspense>
   );
