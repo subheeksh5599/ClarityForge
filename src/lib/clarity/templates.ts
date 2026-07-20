@@ -375,6 +375,100 @@ export const TEMPLATES: Template[] = [
   (let ((auction (unwrap! (map-get? auctions auction-id) err-auction-not-found)))
     (ok (get highest-bid auction))))`,
   },
+  {
+    slug: "crowdfund",
+    name: "Crowdfunding Campaign",
+    description: "Goal-based fundraising. Backers pledge, creator claims if goal met, refund if not.",
+    tag: "Payments",
+    code: `;; Crowdfunding Campaign
+;; Creator sets a funding goal and deadline.
+;; Backers pledge STX. If goal met by deadline, creator claims.
+;; If goal not met, backers get full refund.
+
+(define-constant err-campaign-not-found (err u404))
+(define-constant err-campaign-ended (err u100))
+(define-constant err-goal-met (err u101))
+(define-constant err-goal-not-met (err u102))
+(define-constant err-not-creator (err u103))
+(define-constant err-still-active (err u104))
+(define-constant err-no-pledge (err u105))
+(define-constant err-zero-amount (err u106))
+(define-constant err-already-claimed (err u107))
+(define-constant err-already-refunded (err u108))
+
+(define-data-var campaign-count uint u0)
+
+(define-map campaigns uint {
+  creator: principal,
+  title: (string-ascii 128),
+  goal: uint,
+  deadline: uint,
+  total-pledged: uint,
+  claimed: bool
+})
+
+(define-map pledges { campaign-id: uint, backer: principal } uint)
+
+(define-read-only (get-campaign (id uint))
+  (ok (map-get? campaigns id)))
+
+(define-read-only (get-pledge (campaign-id uint) (backer principal))
+  (ok (map-get? pledges { campaign-id: campaign-id, backer: backer })))
+
+(define-read-only (get-total-pledged (id uint))
+  (let ((campaign (unwrap! (map-get? campaigns id) err-campaign-not-found)))
+    (ok (get total-pledged campaign))))
+
+(define-read-only (is-goal-met (id uint))
+  (let ((campaign (unwrap! (map-get? campaigns id) err-campaign-not-found)))
+    (ok (>= (get total-pledged campaign) (get goal campaign)))))
+
+(define-public (create-campaign (title (string-ascii 128)) (goal uint) (duration-blocks uint))
+  (let ((id (+ (var-get campaign-count) u1)))
+    (var-set campaign-count id)
+    (map-set campaigns id {
+      creator: tx-sender,
+      title: title,
+      goal: goal,
+      deadline: (+ stacks-block-height duration-blocks),
+      total-pledged: u0,
+      claimed: false
+    })
+    (ok id)))
+
+(define-public (pledge (campaign-id uint) (amount uint))
+  (let ((campaign (unwrap! (map-get? campaigns campaign-id) err-campaign-not-found)))
+    (asserts! (> amount u0) err-zero-amount)
+    (asserts! (< stacks-block-height (get deadline campaign)) err-campaign-ended)
+    (asserts! (not (get claimed campaign)) err-already-claimed)
+    ;; In production: transfer STX from backer via stx-transfer?
+    (let ((current (default-to u0 (map-get? pledges { campaign-id: campaign-id, backer: tx-sender }))))
+      (map-set pledges { campaign-id: campaign-id, backer: tx-sender } (+ current amount))
+      (map-set campaigns campaign-id (merge campaign {
+        total-pledged: (+ (get total-pledged campaign) amount)
+      }))
+      (ok (+ current amount)))))
+
+(define-public (claim-funds (campaign-id uint))
+  (let ((campaign (unwrap! (map-get? campaigns campaign-id) err-campaign-not-found)))
+    (asserts! (is-eq (get creator campaign) tx-sender) err-not-creator)
+    (asserts! (>= stacks-block-height (get deadline campaign)) err-still-active)
+    (asserts! (not (get claimed campaign)) err-already-claimed)
+    (asserts! (>= (get total-pledged campaign) (get goal campaign)) err-goal-not-met)
+    (map-set campaigns campaign-id (merge campaign { claimed: true }))
+    ;; In production: transfer total-pledged to creator
+    (ok (get total-pledged campaign))))
+
+(define-public (refund (campaign-id uint))
+  (let ((campaign (unwrap! (map-get? campaigns campaign-id) err-campaign-not-found)))
+    (asserts! (>= stacks-block-height (get deadline campaign)) err-still-active)
+    (asserts! (< (get total-pledged campaign) (get goal campaign)) err-goal-met)
+    (let ((amount (default-to u0 (map-get? pledges { campaign-id: campaign-id, backer: tx-sender }))))
+      (asserts! (> amount u0) err-no-pledge)
+      (map-delete pledges { campaign-id: campaign-id, backer: tx-sender })
+      ;; In production: transfer STX back to backer
+      (ok amount))))`,
+  },
 ];
 
 export function getTemplate(slug: string): Template | undefined {
