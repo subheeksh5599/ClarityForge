@@ -19,6 +19,7 @@ import {
 } from "../../lib/clarity/vm";
 import { CLARITY_LANGUAGE, CLARITY_COMPLETIONS } from "../../lib/clarity/monaco-language";
 import { SkeletonEditor } from "../../components/ui/skeleton";
+import { CopyButton } from "../../components/ui/copy-button";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -77,24 +78,54 @@ function DemoContent() {
     editor.focus();
   };
 
-  // Render output with clickable links
+  // Render output with clickable links and copy buttons for deploy artifacts
   const renderOutput = (text: string | null) => {
     if (!text) return null;
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const parts = text.split(urlRegex);
-    const matches = text.match(urlRegex) || [];
-    let matchIdx = 0;
-    return parts.map((part, i) => {
-      if (i % 2 === 0) return part;
-      const url = matches[matchIdx++];
-      return (
-        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-          className="text-text underline hover:text-text/70"
-          onClick={(e) => e.stopPropagation()}>
-          {url}
-        </a>
-      );
-    });
+
+    const lines = text.split("\n");
+    const hexRegex = /(0x[a-fA-F0-9]{8,})/g;
+    const contractRegex = /(ST[1-3A-HJ-NP-Za-km-z]{38,40}\.[\w-]+)/g;
+
+    return (
+      <div className="font-mono text-xs text-text/80 leading-relaxed whitespace-pre-wrap">
+        {lines.map((line, li) => {
+          // Check for deploy artifacts — add copy button
+          const hexMatch = line.match(hexRegex);
+          const contractMatch = line.match(contractRegex);
+
+          // Render URLs within the line
+          const urlRegex = /(https?:\/\/[^\s]+)/g;
+          const urlParts = line.split(urlRegex);
+          const urlMatches = line.match(urlRegex) || [];
+          let uIdx = 0;
+
+          return (
+            <span key={li}>
+              {urlParts.map((part, pi) => {
+                if (pi % 2 === 1) {
+                  const url = urlMatches[uIdx++];
+                  return (
+                    <a key={pi} href={url} target="_blank" rel="noopener noreferrer"
+                      className="text-text underline hover:text-text/70"
+                      onClick={(e) => e.stopPropagation()}>
+                      {url}
+                    </a>
+                  );
+                }
+                return part;
+              })}
+              {hexMatch && hexMatch.map((h, hi) => (
+                <CopyButton key={`hex-${li}-${hi}`} text={h} label="tx hash" />
+              ))}
+              {contractMatch && contractMatch.map((c, ci) => (
+                <CopyButton key={`ctr-${li}-${ci}`} text={c} label="contract ID" />
+              ))}
+              {"\n"}
+            </span>
+          );
+        })}
+      </div>
+    );
   };
 
   // ── VM state (Remix-style) ──
@@ -128,6 +159,7 @@ function DemoContent() {
 
   // ── localStorage persistence ──
   const STORAGE_KEY = "clarityforge-files";
+  const UI_STATE_KEY = "clarityforge-ui";
 
   // Load saved files on mount
   useEffect(() => {
@@ -142,12 +174,30 @@ function DemoContent() {
     } catch { /* ignore corrupt data */ }
   }, []);
 
+  // Restore UI state on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(UI_STATE_KEY);
+      if (!saved) return;
+      const ui = JSON.parse(saved);
+      if (ui.viewMode) setViewMode(ui.viewMode);
+      if (typeof ui.rightPanelOpen === "boolean") setRightPanelOpen(ui.rightPanelOpen);
+    } catch { /* ignore */ }
+  }, []);
+
   // Save files whenever they change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(files));
     } catch { /* quota exceeded — silently ignore */ }
   }, [files]);
+
+  // Save UI state whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(UI_STATE_KEY, JSON.stringify({ viewMode, rightPanelOpen }));
+    } catch { /* ignore */ }
+  }, [viewMode, rightPanelOpen]);
 
   // Mark file as unsaved when code changes from original
   const markUnsaved = (id: string, code: string, original: string) => {
