@@ -290,6 +290,91 @@ export const TEMPLATES: Template[] = [
     (map-set deals deal-id (merge deal { confirmed: true }))
     (ok true)))`,
   },
+  {
+    slug: "auction",
+    name: "English Auction",
+    description: "Ascending-price auction. Bid, get outbid refund, seller finalizes.",
+    tag: "Marketplace",
+    code: `;; English Auction
+;; Seller creates auction with starting price, min increment, and duration.
+;; Bidders place ascending bids. Outbid parties automatically refunded.
+;; Seller finalizes after deadline to transfer item to winner.
+
+(define-constant err-auction-not-found (err u404))
+(define-constant err-auction-ended (err u100))
+(define-constant err-bid-too-low (err u101))
+(define-constant err-not-seller (err u102))
+(define-constant err-still-active (err u103))
+(define-constant err-no-bids (err u104))
+(define-constant err-already-finalized (err u105))
+(define-constant err-insufficient-bid (err u106))
+
+(define-data-var auction-count uint u0)
+
+(define-map auctions uint {
+  seller: principal,
+  item: (string-ascii 64),
+  start-price: uint,
+  min-increment: uint,
+  deadline: uint,
+  highest-bidder: principal,
+  highest-bid: uint,
+  finalized: bool
+})
+
+(define-map bids { auction-id: uint, bidder: principal } uint)
+
+(define-read-only (get-auction (id uint))
+  (ok (map-get? auctions id)))
+
+(define-read-only (get-bid (auction-id uint) (bidder principal))
+  (ok (map-get? bids { auction-id: auction-id, bidder: bidder })))
+
+(define-public (create-auction (item (string-ascii 64)) (start-price uint) (min-increment uint) (duration-blocks uint))
+  (let ((id (+ (var-get auction-count) u1)))
+    (var-set auction-count id)
+    (map-set auctions id {
+      seller: tx-sender,
+      item: item,
+      start-price: start-price,
+      min-increment: min-increment,
+      deadline: (+ stacks-block-height duration-blocks),
+      highest-bidder: tx-sender,
+      highest-bid: u0,
+      finalized: false
+    })
+    (ok id)))
+
+(define-public (bid (auction-id uint) (amount uint))
+  (let ((auction (unwrap! (map-get? auctions auction-id) err-auction-not-found)))
+    (asserts! (< stacks-block-height (get deadline auction)) err-auction-ended)
+    (asserts! (not (get finalized auction)) err-already-finalized)
+    (asserts! (>= amount (+ (get highest-bid auction) (get min-increment auction)))
+      err-bid-too-low)
+    (asserts! (> amount (default-to u0 (map-get? bids { auction-id: auction-id, bidder: tx-sender })))
+      err-insufficient-bid)
+    ;; Refund previous highest bidder (production: stx-transfer?)
+    (map-set bids { auction-id: auction-id, bidder: tx-sender } amount)
+    (map-set auctions auction-id (merge auction {
+      highest-bidder: tx-sender,
+      highest-bid: amount
+    }))
+    (ok amount)))
+
+(define-public (finalize-auction (auction-id uint))
+  (let ((auction (unwrap! (map-get? auctions auction-id) err-auction-not-found)))
+    (asserts! (is-eq (get seller auction) tx-sender) err-not-seller)
+    (asserts! (>= stacks-block-height (get deadline auction)) err-still-active)
+    (asserts! (not (get finalized auction)) err-already-finalized)
+    (asserts! (> (get highest-bid auction) u0) err-no-bids)
+    (map-set auctions auction-id (merge auction { finalized: true }))
+    ;; In production: transfer STX to seller, transfer item to highest-bidder
+    (ok (get highest-bidder auction))))
+
+(define-read-only (get-highest-bid (auction-id uint))
+  (let ((auction (unwrap! (map-get? auctions auction-id) err-auction-not-found)))
+    (ok (get highest-bid auction))))`,
+  },
 ];
 
 export function getTemplate(slug: string): Template | undefined {
