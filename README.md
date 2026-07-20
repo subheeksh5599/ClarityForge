@@ -14,11 +14,11 @@
 
 ### Ethereum devs have Remix. Stacks devs had nothing. ClarityForge is the on-ramp.
 
-ClarityForge is a browser IDE for Clarity smart contracts. Open a tab, write a contract in seconds, run it against a **stateful in-browser VM**, analyze it with a **real tokenizer + analyzer**, and deploy to Stacks **testnet** with your Leather or Xverse wallet — no CLI, no Rust toolchain, no chain setup. Six production-ready templates included. When you're ready for production, you graduate to Clarinet. ClarityForge is the step before it.
+ClarityForge is a browser IDE for Clarity smart contracts. Open a tab, write a contract in seconds, run it against a **stateful in-browser VM**, analyze it with a **real tokenizer + analyzer** (with trait resolution), and deploy to Stacks **testnet** with your Leather or Xverse wallet — no CLI, no Rust toolchain, no chain setup. Eleven production-ready templates included. When you're ready for production, you graduate to Clarinet. ClarityForge is the step before it.
 
 ### ▶ Live now — write, simulate, and deploy at **[clarityforge-sigma.vercel.app](https://clarityforge-sigma.vercel.app)**
 
-**[ Live demo ↗ ](https://clarityforge-sigma.vercel.app)** · **[ Open the editor ↗ ](https://clarityforge-sigma.vercel.app/demo)** · **[ Browse templates ↗ ](https://clarityforge-sigma.vercel.app/templates)** · **[ See it in one command ↓ ](#-see-it-in-one-command)** · **[ Honesty table ↓ ](#whats-real-vs-pending--the-honesty-table)** · **[ Architecture ↓ ](#architecture)**
+**[ Live demo ↗ ](https://clarityforge-sigma.vercel.app)** · **[ Open the editor ↗ ](https://clarityforge-sigma.vercel.app/demo)** · **[ Browse templates ↗ ](https://clarityforge-sigma.vercel.app/templates)** · **[ Dashboard ↗ ](https://clarityforge-sigma.vercel.app/dashboard)** · **[ See it in one command ↓ ](#-see-it-in-one-command)** · **[ Honesty table ↓ ](#whats-real-vs-pending--the-honesty-table)** · **[ Architecture ↓ ](#architecture)**
 
 Built for the Stacks developer ecosystem. MIT licensed. _An educational tool — graduate to Clarinet for production contracts._
 
@@ -209,16 +209,21 @@ Every network reference is hardcoded to **testnet** — no mainnet path exists i
 
 ### 6 · Template library
 
-Six production-ready Clarity contracts, one click away — every one deploys cleanly on testnet:
+Eleven production-ready Clarity contracts, one click away — every one deploys cleanly on testnet:
 
-| Template | What it shows |
-|----------|--------------|
-| **SIP-010 Token** | Fungible token: define, transfer, balance query, supply |
-| **SIP-009 NFT** | Non-fungible token: mint with counter, owner query, transfer |
-| **DAO Governor** | Governance: proposal map, vote map, counter, propose + vote |
-| **AMM Pool** | DeFi: pool creation, reserves, liquidity |
-| **Staking** | DeFi: stake/unstake/claim, block-height-based rewards |
-| **Multi-Sig** | Security: N-of-M owners, propose + sign transactions |
+| Template | Tag | What it shows |
+|----------|-----|--------------|
+| **SIP-010 Token** | Fungible Token | Fungible token: define, transfer, balance query, supply |
+| **SIP-009 NFT** | NFT | Non-fungible token: mint with counter, owner query, transfer |
+| **DAO Governor** | Governance | Governance: proposal map, vote map, counter, propose + vote |
+| **AMM Pool** | DeFi | DeFi: pool creation, reserves, liquidity |
+| **Staking** | DeFi | Stake/unstake/claim, block-height-based rewards |
+| **Multi-Sig** | Security | N-of-M owners, propose + sign transactions |
+| **Escrow** | Payments | P2P exchange with arbiter dispute resolution + auto-refund |
+| **English Auction** | Marketplace | Ascending-price bids, outbid refund, seller finalization |
+| **Crowdfunding** | Payments | Goal-based fundraising with auto-refund if goal not met |
+| **Token Vesting** | DeFi | Cliff + linear vesting schedule, admin-managed beneficiaries |
+| **Name Registry** | Identity | BNS-style namespace → name → owner resolution |
 
 Each template opens in the editor with one click. Edit, analyze, simulate, deploy. All follow Stacks standards — SIP-010, SIP-009.
 
@@ -269,6 +274,7 @@ Analyzer (src/lib/clarity/analyzer.ts)
   • Balanced-paren validation
   • Definition extraction (tokens, NFTs, fns, maps, vars, constants, traits)
   • Parameter extraction from function signatures
+  • Trait resolution (define-trait + impl-trait conformance checking)
   • Diagnostics with line numbers · cost estimation
     │
     ▼
@@ -354,12 +360,12 @@ We want to be honest about what this project does and doesn't do:
 | Real testnet deploy | ✅ Real | Via wallet's `stx_deployContract`, with Hiro explorer links |
 | Deploy simulation (no wallet) | ✅ Real | Clearly labeled — generates a tx hash + contract ID for prototyping |
 | Clarinet integration | ✅ Real | Optional — runs `clarinet check` if the binary exists; else falls back to `"vm": "static"` |
-| Six templates, all deploy on testnet | ✅ Real | token, NFT, DAO, AMM, staking, multi-sig |
+| Eleven templates, all deploy on testnet | ✅ Real | token, NFT, DAO, AMM, staking, multi-sig, escrow, auction, crowdfund, vesting, name-registry |
 | OG image, dark/light theme, file tabs, localStorage, download, call graph | ✅ Real | — |
 | Interact tab + execution trace + account balances | ✅ Real | Per-function execution against the VM |
 | | | |
 | Deep semantic validation (type checking, builtin arity) | ❌ Pending | Analyzer is syntactic — it does not check builtin arity. Use Clarinet. |
-| Trait resolution | ❌ Pending | Recognized, not resolved |
+| Trait resolution | ✅ Real | Full define-trait + impl-trait parsing, conformance checking, typed diagnostics |
 | Full Clarity runtime execution | ❌ Pending | VM is a simulator, not the real VM. Use Clarinet. |
 | Test framework | ❌ Pending | Clarinet's test harness is the right tool |
 | Server-side storage / sharing | ❌ Pending | localStorage only |
@@ -431,6 +437,7 @@ src/
 │   ├── page.tsx                  Landing page
 │   ├── demo/page.tsx             Monaco editor + Run/Deploy + tabs + VM
 │   ├── templates/page.tsx        Example contract browser
+│   ├── dashboard/page.tsx        Project overview, stats, template table
 │   ├── layout.tsx                Root layout, fonts, OG metadata
 │   ├── globals.css               Dark/light 2-color system
 │   ├── og/route.tsx              Dynamic OG image
@@ -444,17 +451,19 @@ src/
 │   ├── analyzer.ts               Analysis + diagnostics + params + call graph
 │   ├── executor.ts               Function execution simulator
 │   ├── vm.ts                     Stateful browser VM (like Remix VM)
-│   ├── templates.ts              6 production-ready contract templates
+│   ├── templates.ts              11 production-ready contract templates
 │   └── monaco-language.ts        Monaco language definition + 35 snippets
-└── components/
-    ├── Nav.tsx                   Fixed nav + wallet connect + theme toggle
-    ├── Footer.tsx                Minimal footer
-    ├── StateVisualizer.tsx       Contract structure viewer + SVG call graph
-    ├── ClientProviders.tsx       Theme + wallet context wrapper
-    ├── ThemeProvider.tsx         Dark/light with localStorage
-    ├── WalletProvider.tsx        Native Stacks wallet (SIP-030, zero deps)
-    ├── AccountPanel.tsx          Pre-funded test accounts + token balances
-    └── VmTrace.tsx               VM execution trace viewer (step-by-step)
+├── components/
+│    ├── Nav.tsx                   Fixed nav + wallet connect + theme toggle
+│    ├── Footer.tsx                Minimal footer
+│    ├── StateVisualizer.tsx       Contract structure viewer + SVG call graph
+│    ├── ClientProviders.tsx       Theme + wallet context wrapper
+│    ├── ThemeProvider.tsx         Dark/light with localStorage
+│    ├── WalletProvider.tsx        Native Stacks wallet (SIP-030, zero deps)
+│    ├── AccountPanel.tsx          Pre-funded test accounts + token balances
+│    ├── VmTrace.tsx               VM execution trace viewer (step-by-step)
+│    └── ui/
+│         └── stat-card.tsx        Shadcn-style stat card component
 ```
 
 ---
@@ -465,18 +474,18 @@ src/
 - **Language:** TypeScript 5 (strict)
 - **Editor:** Monaco Editor (`@monaco-editor/react` 4.7)
 - **Styling:** Tailwind CSS 4 · Space Grotesk (display), DM Mono (code)
+- **Icons:** Lucide React
 - **Wallet:** Native `window.StacksProvider` (SIP-030) — zero deps
 - **Analysis + VM:** Custom tokenizer, analyzer, and stateful simulator — pure TypeScript
 - **Validation:** Optional Clarinet integration (`execSync`)
 - **Deployment:** Vercel (serverless)
 
-**Total runtime dependencies:** 4 — `next`, `react`, `react-dom`, `@monaco-editor/react`. The wallet, analyzer, VM, and templates are all hand-written — no third-party Stacks libraries.
+**Total runtime dependencies:** 5 — `next`, `react`, `react-dom`, `@monaco-editor/react`, `lucide-react`. The wallet, analyzer, VM, and templates are all hand-written — no third-party Stacks libraries.
 
 ---
 
 ## Roadmap
 
-- **Deep semantic validation** — type checking, builtin arity, trait resolution
 - **Shareable URLs** — encode a contract in the URL hash for instant sharing
 - **Compiler output** — show the serialized contract and ABI (like Remix's compile tab)
 - **Server-side storage** — optional accounts for saving contracts across devices
