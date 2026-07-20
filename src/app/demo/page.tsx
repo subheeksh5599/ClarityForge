@@ -31,7 +31,18 @@ function nextFileId() { return `file-${++fileIdCounter}`; }
 function DemoContent() {
   const searchParams = useSearchParams();
   const initialSlug = searchParams.get("template") ?? "token";
-  const initialTemplate = getTemplate(initialSlug) ?? TEMPLATES[0];
+  const initialTemplate = getTemplate(initialSlug) ?? (() => {
+    // Check custom templates in localStorage
+    try {
+      const raw = localStorage.getItem("clarityforge-custom-templates");
+      if (raw) {
+        const custom: Template[] = JSON.parse(raw);
+        const found = custom.find((t) => t.slug === initialSlug);
+        if (found) return found;
+      }
+    } catch { /* ignore */ }
+    return TEMPLATES[0];
+  })();
 
   const [files, setFiles] = useState<FileTab[]>([
     { id: nextFileId(), name: `${initialTemplate.slug}.clar`, code: initialTemplate.code },
