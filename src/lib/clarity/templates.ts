@@ -469,6 +469,101 @@ export const TEMPLATES: Template[] = [
       ;; In production: transfer STX back to backer
       (ok amount))))`,
   },
+  {
+    slug: "vesting",
+    name: "Token Vesting",
+    description: "Time-locked token release. Cliff + linear vesting. Beneficiary claims over time.",
+    tag: "DeFi",
+    code: `;; Token Vesting Schedule
+;; Administrator creates vesting schedules with cliff and linear release.
+;; Beneficiaries claim unlocked tokens over time.
+;; Common for team allocations, investor grants, and airdrops.
+
+(define-constant err-not-admin (err u100))
+(define-constant err-schedule-not-found (err u404))
+(define-constant err-zero-amount (err u101))
+(define-constant err-nothing-to-claim (err u102))
+(define-constant err-schedule-revoked (err u103))
+(define-constant err-already-exists (err u104))
+
+(define-data-var admin principal tx-sender)
+(define-data-var schedule-count uint u0)
+
+(define-map schedules uint {
+  beneficiary: principal,
+  total-amount: uint,
+  start-block: uint,
+  cliff-block: uint,
+  end-block: uint,
+  claimed: uint,
+  revoked: bool
+})
+
+(define-read-only (get-schedule (id uint))
+  (ok (map-get? schedules id)))
+
+(define-read-only (get-claimable (id uint))
+  (let ((s (unwrap! (map-get? schedules id) err-schedule-not-found)))
+    (ok (calculate-unlocked s))))
+
+(define-read-only (calculate-unlocked (s { beneficiary: principal, total-amount: uint, start-block: uint, cliff-block: uint, end-block: uint, claimed: uint, revoked: bool }))
+  (let ((current blocks-stack-height)
+        (total (get total-amount s))
+        (start (get start-block s))
+        (cliff (get cliff-block s))
+        (end (get end-block s))
+        (claimed (get claimed s)))
+    (if (< current cliff)
+      u0 ;; Before cliff — nothing unlocked
+      (if (>= current end)
+        (- total claimed) ;; Fully vested — claim remaining
+        (let ((elapsed (- current start))
+              (duration (- end start)))
+          (if (<= duration u0)
+            u0
+            (- (/ (* total elapsed) duration) claimed)))))))
+
+(define-public (set-admin (new-admin principal))
+  (begin
+    (asserts! (is-eq tx-sender (var-get admin)) err-not-admin)
+    (var-set admin new-admin)
+    (ok true)))
+
+(define-public (create-schedule (beneficiary principal) (total-amount uint) (cliff-blocks uint) (vesting-blocks uint))
+  (let ((id (+ (var-get schedule-count) u1))
+        (start stacks-block-height))
+    (asserts! (is-eq tx-sender (var-get admin)) err-not-admin)
+    (asserts! (> total-amount u0) err-zero-amount)
+    (var-set schedule-count id)
+    (map-set schedules id {
+      beneficiary: beneficiary,
+      total-amount: total-amount,
+      start-block: start,
+      cliff-block: (+ start cliff-blocks),
+      end-block: (+ start cliff-blocks vesting-blocks),
+      claimed: u0,
+      revoked: false
+    })
+    (ok id)))
+
+(define-public (claim (schedule-id uint))
+  (let ((s (unwrap! (map-get? schedules schedule-id) err-schedule-not-found)))
+    (asserts! (is-eq (get beneficiary s) tx-sender) (err u403))
+    (asserts! (not (get revoked s)) err-schedule-revoked)
+    (let ((unlocked (- (calculate-unlocked s) (get claimed s))))
+      (asserts! (> unlocked u0) err-nothing-to-claim)
+      (map-set schedules schedule-id (merge s {
+        claimed: (+ (get claimed s) unlocked)
+      }))
+      ;; In production: transfer unlocked tokens to beneficiary
+      (ok unlocked))))
+
+(define-public (revoke-schedule (schedule-id uint))
+  (let ((s (unwrap! (map-get? schedules schedule-id) err-schedule-not-found)))
+    (asserts! (is-eq tx-sender (var-get admin)) err-not-admin)
+    (map-set schedules schedule-id (merge s { revoked: true }))
+    (ok true)))`,
+  },
 ];
 
 export function getTemplate(slug: string): Template | undefined {
