@@ -676,14 +676,18 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
 }) {
   const defs = (analysisResult.definitions ?? []) as any[];
   const fns = getExecutableFunctions(defs);
-  const icon = (t: string) => {
-    if (t === "check") return "✓";
-    if (t === "read") return "◎";
-    if (t === "write") return "✎";
-    if (t === "transfer") return "→";
-    if (t === "emit") return "⚡";
-    if (t === "return") return "↩";
-    return "•";
+  const selectedDef = defs.find((d: any) => d.name === selectedFn);
+
+  const stepIcon = (t: string) => {
+    switch (t) {
+      case "check": return "✓";
+      case "read": return "◎";
+      case "write": return "✎";
+      case "transfer": return "→";
+      case "emit": return "⚡";
+      case "return": return "↩";
+      default: return "•";
+    }
   };
 
   const handleExecute = () => {
@@ -691,12 +695,10 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
     if (!fn) return;
 
     if (envMode === "vm") {
-      // Use VM simulator
       const state = JSON.parse(JSON.stringify(vmStateRef.current));
       state.caller = selectedAccount;
       const result = executeInVm(fn, defs, fnParams, state);
       onVmStateChange(result.state);
-      // Convert VmResult to ExecutionResult format
       setExecResult({
         functionName: fn.name,
         params: fnParams,
@@ -709,47 +711,115 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
     }
   };
 
-  if (!fns.length) return <div className="flex items-center justify-center h-full"><p className="text-muted text-xs">No executable functions</p></div>;
+  if (!fns.length) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-2">
+        <p className="text-xs text-muted/50 font-mono">No executable functions</p>
+        <p className="text-[10px] text-muted/30">Add a define-public or define-read-only function</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Function selector */}
       <div>
-        <p className="text-[10px] text-muted font-mono uppercase tracking-wider mb-2">Function</p>
-        <select value={selectedFn} onChange={(e) => { setSelectedFn(e.target.value); const fn = defs.find((d: any) => d.name === e.target.value); if (fn) setFnParams(getDefaultParams(fn)); setExecResult(null); }}
-          className="w-full bg-surface border border-line text-xs text-text px-3 py-2 font-mono focus:outline-none focus:border-text/40">
-          <option value="">Select…</option>
-          {fns.map((f: any) => <option key={f.name} value={f.name}>{f.name} ({f.type === "public-fn" ? "public" : "read-only"})</option>)}
+        <label className="text-[10px] text-muted/50 font-mono uppercase tracking-[0.12em] mb-2 block">
+          Function
+        </label>
+        <select
+          value={selectedFn}
+          onChange={(e) => {
+            setSelectedFn(e.target.value);
+            const fn = defs.find((d: any) => d.name === e.target.value);
+            if (fn) setFnParams(getDefaultParams(fn));
+            setExecResult(null);
+          }}
+          className="w-full bg-surface border border-line text-xs text-text px-3 py-2 font-mono focus:outline-none focus:border-text/30 transition-colors appearance-none cursor-pointer"
+        >
+          <option value="">Select a function…</option>
+          {fns.map((f: any) => (
+            <option key={f.name} value={f.name}>
+              {f.name} ({f.type === "public-fn" ? "public" : "read-only"})
+            </option>
+          ))}
         </select>
       </div>
-      {selectedFn && fnParams.length > 0 && (
+
+      {/* Parameter inputs */}
+      {selectedFn && selectedDef?.params?.length > 0 && (
         <div>
-          <p className="text-[10px] text-muted font-mono uppercase tracking-wider mb-2">Parameters</p>
-          <div className="space-y-1.5">
-            {fnParams.map((p, i) => (
-              <input key={i} value={p} onChange={(e) => { const n = [...fnParams]; n[i] = e.target.value; setFnParams(n); }}
-                className="w-full bg-surface border border-line text-xs text-text px-3 py-2 font-mono focus:outline-none focus:border-text/40" placeholder={`param ${i + 1}`} />
+          <label className="text-[10px] text-muted/50 font-mono uppercase tracking-[0.12em] mb-2 block">
+            Parameters
+          </label>
+          <div className="space-y-2">
+            {selectedDef.params.map((p: { name: string; type: string }, i: number) => (
+              <div key={i}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-text/80 font-mono">{p.name}</span>
+                  <span className="text-[9px] text-muted/40 font-mono">{p.type}</span>
+                </div>
+                <input
+                  value={fnParams[i] ?? ""}
+                  onChange={(e) => {
+                    const n = [...fnParams];
+                    n[i] = e.target.value;
+                    setFnParams(n);
+                  }}
+                  className="w-full bg-surface border border-line text-xs text-text px-3 py-2 font-mono focus:outline-none focus:border-text/30 transition-colors"
+                  placeholder={`Enter ${p.name}…`}
+                />
+              </div>
             ))}
           </div>
         </div>
       )}
+
+      {/* Execute button */}
       {selectedFn && (
-        <button onClick={handleExecute}
-          className="w-full py-2 text-[11px] font-medium text-bg bg-text hover:bg-text/90">▶ Execute {selectedFn}</button>
+        <button
+          onClick={handleExecute}
+          className="w-full py-2.5 text-[11px] font-medium text-bg bg-text hover:bg-text/85 active:bg-text/70 transition-colors"
+        >
+          ▶ Execute {selectedFn}
+        </button>
       )}
+
+      {/* Trace output */}
       {execResult && (
-        <div>
-          <p className="text-[10px] text-muted font-mono uppercase tracking-wider mb-3">Trace</p>
-          <div className="space-y-1.5">
+        <div className="border-t border-line pt-5">
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-[10px] text-muted/50 font-mono uppercase tracking-[0.12em]">
+              Trace
+            </label>
+            <span className="text-[10px] text-muted/30 font-mono">
+              {execResult.steps.length} step{execResult.steps.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="space-y-1">
             {execResult.steps.map((s, i) => (
-              <div key={i} className={`flex items-start gap-2 p-2.5 text-[11px] ${s.type === "return" ? "bg-text/5 border border-line" : ""}`}>
-                <span className="mt-px w-4 text-center font-mono text-muted shrink-0">{icon(s.type)}</span>
-                <span className="text-text/80 font-mono leading-relaxed">{s.detail}</span>
+              <div
+                key={i}
+                className={`flex items-start gap-2.5 px-3 py-2 text-[11px] rounded-sm ${
+                  s.type === "return"
+                    ? "bg-text/[0.04] border border-text/[0.06]"
+                    : s.type === "error"
+                    ? "bg-red-500/[0.06] border border-red-500/[0.12]"
+                    : ""
+                }`}
+              >
+                <span className="mt-px w-4 text-center font-mono text-muted/50 shrink-0 select-none">
+                  {stepIcon(s.type)}
+                </span>
+                <span className="text-text/75 font-mono leading-relaxed">{s.detail}</span>
               </div>
             ))}
           </div>
-          <div className="mt-3 pt-3 border-t border-line flex justify-between text-[11px]">
-            <span className="text-muted font-mono">Cost</span>
-            <span className="text-text font-mono">{execResult.costEstimate.toLocaleString()} µSTX</span>
+          <div className="mt-4 pt-3 border-t border-line flex justify-between text-[11px]">
+            <span className="text-muted/50 font-mono">Cost</span>
+            <span className="text-text font-mono tabular-nums">
+              {execResult.costEstimate.toLocaleString()} µSTX
+            </span>
           </div>
         </div>
       )}
