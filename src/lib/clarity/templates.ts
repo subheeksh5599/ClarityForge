@@ -209,6 +209,87 @@ export const TEMPLATES: Template[] = [
     (map-set signatures { tx-id: tx-id, signer: tx-sender } true)
     (ok true)))`,
   },
+  {
+    slug: "escrow",
+    name: "Timelocked Escrow",
+    description: "Secure P2P exchange. Arbiter resolves disputes, auto-refund on expiry.",
+    tag: "Payments",
+    code: `;; Timelocked Escrow
+;; Buyer deposits STX, seller delivers, arbiter resolves disputes.
+;; If seller doesn't confirm by deadline, buyer reclaims.
+
+(define-constant err-only-buyer (err u100))
+(define-constant err-only-seller (err u101))
+(define-constant err-only-arbiter (err u102))
+(define-constant err-already-funded (err u103))
+(define-constant err-not-funded (err u104))
+(define-constant err-deadline-passed (err u105))
+(define-constant err-already-confirmed (err u106))
+
+(define-data-var deal-count uint u0)
+
+(define-map deals uint {
+  buyer: principal,
+  seller: principal,
+  arbiter: principal,
+  amount: uint,
+  deadline: uint,
+  confirmed: bool,
+  disputed: bool
+})
+
+(define-read-only (get-deal (id uint))
+  (ok (map-get? deals id)))
+
+(define-public (create-deal (seller principal) (arbiter principal) (amount uint) (blocks-until-deadline uint))
+  (let ((id (+ (var-get deal-count) u1))
+        (deadline (+ stacks-block-height blocks-until-deadline)))
+    (var-set deal-count id)
+    (map-set deals id {
+      buyer: tx-sender,
+      seller: seller,
+      arbiter: arbiter,
+      amount: amount,
+      deadline: deadline,
+      confirmed: false,
+      disputed: false
+    })
+    ;; In production: transfer STX via stx-transfer? here
+    (ok id)))
+
+(define-public (confirm-delivery (deal-id uint))
+  (let ((deal (unwrap! (map-get? deals deal-id) (err u404))))
+    (asserts! (is-eq (get buyer deal) tx-sender) err-only-buyer)
+    (asserts! (not (get confirmed deal)) err-already-confirmed)
+    (map-set deals deal-id (merge deal { confirmed: true }))
+    ;; In production: transfer STX to seller
+    (ok true)))
+
+(define-public (raise-dispute (deal-id uint))
+  (let ((deal (unwrap! (map-get? deals deal-id) (err u404))))
+    (asserts! (or (is-eq (get buyer deal) tx-sender)
+                  (is-eq (get seller deal) tx-sender))
+      (err u403))
+    (asserts! (not (get confirmed deal)) err-already-confirmed)
+    (map-set deals deal-id (merge deal { disputed: true }))
+    (ok true)))
+
+(define-public (arbiter-resolve (deal-id uint) (refund-buyer bool))
+  (let ((deal (unwrap! (map-get? deals deal-id) (err u404))))
+    (asserts! (is-eq (get arbiter deal) tx-sender) err-only-arbiter)
+    (asserts! (get disputed deal) (err u200))
+    (map-set deals deal-id (merge deal { confirmed: true }))
+    ;; In production: send to buyer if refund-buyer, else to seller
+    (ok (if refund-buyer "refunded" "released"))))
+
+(define-public (reclaim-expired (deal-id uint))
+  (let ((deal (unwrap! (map-get? deals deal-id) (err u404))))
+    (asserts! (is-eq (get buyer deal) tx-sender) err-only-buyer)
+    (asserts! (>= stacks-block-height (get deadline deal)) err-deadline-passed)
+    (asserts! (not (get confirmed deal)) err-already-confirmed)
+    (map-set deals deal-id (merge deal { confirmed: true }))
+    (ok true)))`,
+  },
 ];
 
 export function getTemplate(slug: string): Template | undefined {
