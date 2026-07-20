@@ -9,7 +9,7 @@ export default function TemplatesPage() {
   return (
     <>
       <Nav />
-      <main className="pt-24 pb-20 px-8">
+      <main className="pt-24 pb-20 px-8 animate-fade-in">
         <div className="max-w-5xl mx-auto">
           <h1 className="text-4xl sm:text-5xl font-bold tracking-[-0.03em] mb-6">
             Start from production-ready contracts.

@@ -20,7 +20,7 @@ export default function DashboardPage() {
   return (
     <>
       <Nav />
-      <main className="pt-24 pb-20 px-8">
+      <main className="pt-24 pb-20 px-8 animate-fade-in">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="mb-12">

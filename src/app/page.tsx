@@ -9,7 +9,7 @@ export default function Home() {
     <>
       <Nav />
 
-      <main>
+      <main className="animate-fade-in">
         {/* HERO */}
         <section className="min-h-screen flex flex-col justify-center px-8 pt-16 pb-20">
           <div className="max-w-6xl mx-auto w-full">
