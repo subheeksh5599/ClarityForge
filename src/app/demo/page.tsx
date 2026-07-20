@@ -600,23 +600,33 @@ function DemoContent() {
                   )}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center h-full px-4">
-                  <p className="text-muted text-xs mb-4">
-                    <span className="text-text">{">"}</span> Pick a template or start typing
+                <div className="flex flex-col items-center justify-center h-full px-6 py-12">
+                  <div className="text-center mb-8">
+                    <p className="text-sm font-medium text-text mb-2">Welcome to ClarityForge</p>
+                    <p className="text-xs text-muted/60 max-w-xs leading-relaxed">
+                      Your code is loaded and ready. Click <span className="text-text font-mono">Run</span> to analyze and execute, or pick a different template below.
+                    </p>
+                  </div>
+                  <p className="text-[10px] text-muted/40 font-mono uppercase tracking-[0.15em] mb-4 self-start">
+                    Templates
                   </p>
-                  <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
-                    {TEMPLATES.slice(0, 6).map((t) => (
+                  <div className="grid grid-cols-2 gap-1.5 w-full">
+                    {TEMPLATES.map((t) => (
                       <button
                         key={t.slug}
                         onClick={() => switchTemplate(t)}
-                        className="text-left px-3 py-2 border border-line rounded-sm hover:bg-text/[0.03] transition-colors text-[11px]"
+                        className={`text-left px-3 py-2.5 border border-line rounded-sm hover:bg-text/[0.03] hover:border-text/20 transition-colors ${
+                          activeFile.name === `${t.slug}.clar` ? "border-text/30 bg-text/[0.02]" : ""
+                        }`}
                       >
-                        <span className="text-text font-mono block">{t.name}</span>
-                        <span className="text-muted/60 text-[10px]">{t.tag}</span>
+                        <span className="text-text text-[12px] font-mono block truncate">{t.name}</span>
+                        <span className="text-muted/50 text-[10px]">{t.tag}</span>
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] text-muted/40 mt-4">or Ctrl+S to run current code</p>
+                  <p className="text-[10px] text-muted/30 mt-6">
+                    Ctrl+S to analyze · Ctrl+Enter to run
+                  </p>
                 </div>
               )}
             </div>
