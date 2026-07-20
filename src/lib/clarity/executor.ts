@@ -1,7 +1,7 @@
 import { Definition, ParamDef } from "./analyzer";
 
 export interface ExecutionStep {
-  type: "check" | "read" | "write" | "transfer" | "emit" | "return";
+  type: "check" | "read" | "write" | "transfer" | "emit" | "return" | "error";
   detail: string;
   storageAfter?: Record<string, string>;
 }
