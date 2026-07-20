@@ -26,8 +26,8 @@ Built for the Stacks developer ecosystem. MIT licensed. _An educational tool —
 
 <table>
   <tr>
-    <td width="50%"><img src="https://clarityforge-sigma.vercel.app/og" alt="ClarityForge landing page" width="100%" /></td>
-    <td width="50%"><img src="https://clarityforge-sigma.vercel.app/og" alt="ClarityForge editor" width="100%" /></td>
+    <td width="50%"><img src="docs/landing.png" alt="ClarityForge landing page" width="100%" /></td>
+    <td width="50%"><img src="docs/editor.png" alt="ClarityForge editor" width="100%" /></td>
   </tr>
   <tr>
     <td align="center"><sub>Landing page</sub></td>
