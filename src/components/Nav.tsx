@@ -34,6 +34,14 @@ export default function Nav() {
           >
             Editor
           </Link>
+          <Link
+            href="/dashboard"
+            className={`text-sm transition-colors ${
+              pathname === "/dashboard" ? "text-text" : "text-muted hover:text-text"
+            }`}
+          >
+            Dashboard
+          </Link>
           <button
             onClick={toggleTheme}
             className="text-sm text-muted hover:text-text transition-colors"
