@@ -147,6 +147,7 @@ export default function Home() {
                 ["crowdfund", "Crowdfunding", "Goal-based fundraising"],
                 ["vesting", "Token Vesting", "Cliff + linear release"],
                 ["name-registry", "Name Registry", "BNS-style names"],
+                ["streaming", "Streaming", "Pay per block streams"],
               ].map(([slug, name, desc]) => (
                 <Link key={slug} href={`/demo?template=${slug}`} className="bg-bg p-8 hover:bg-text/[0.02] transition-colors cursor-pointer block">
                   <h3 className="text-lg font-bold mb-1.5">{name}</h3>

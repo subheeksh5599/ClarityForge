@@ -653,6 +653,103 @@ export const TEMPLATES: Template[] = [
     }))
     (ok (get expires-at record))))`,
   },
+  {
+    slug: "streaming",
+    name: "Streaming Payments",
+    description: "Real-time money streaming. Pay per block, cancel anytime, claim accrued.",
+    tag: "Payments",
+    code: `;; Streaming Payments
+;; Payer creates a payment stream that unlocks per block.
+;; Recipient claims accrued amount at any time.
+;; Payer can cancel — recipient gets accrued, payer gets remainder.
+
+(define-constant err-stream-not-found (err u404))
+(define-constant err-not-payer (err u100))
+(define-constant err-not-recipient (err u101))
+(define-constant err-zero-amount (err u102))
+(define-constant err-zero-duration (err u103))
+(define-constant err-already-cancelled (err u104))
+(define-constant err-nothing-to-claim (err u105))
+
+(define-data-var stream-count uint u0)
+
+(define-map streams uint {
+  payer: principal,
+  recipient: principal,
+  total-amount: uint,
+  start-block: uint,
+  end-block: uint,
+  claimed: uint,
+  cancelled: bool
+})
+
+(define-read-only (get-stream (id uint))
+  (ok (map-get? streams id)))
+
+(define-read-only (get-claimable (id uint))
+  (let ((s (unwrap! (map-get? streams id) err-stream-not-found)))
+    (ok (calculate-accrued s))))
+
+(define-read-only (calculate-accrued (s {
+  payer: principal, recipient: principal,
+  total-amount: uint, start-block: uint, end-block: uint,
+  claimed: uint, cancelled: bool
+}))
+  (let ((current stacks-block-height)
+        (total (get total-amount s))
+        (start (get start-block s))
+        (end (get end-block s))
+        (claimed (get claimed s)))
+    (if (>= current end)
+      (- total claimed) ;; Fully accrued
+      (let ((elapsed (- current start))
+            (duration (- end start)))
+        (if (<= duration u0)
+          u0
+          (- (/ (* total elapsed) duration) claimed))))))
+
+(define-public (create-stream (recipient principal) (total-amount uint) (duration-blocks uint))
+  (let ((id (+ (var-get stream-count) u1)))
+    (asserts! (> total-amount u0) err-zero-amount)
+    (asserts! (> duration-blocks u0) err-zero-duration)
+    (var-set stream-count id)
+    (map-set streams id {
+      payer: tx-sender,
+      recipient: recipient,
+      total-amount: total-amount,
+      start-block: stacks-block-height,
+      end-block: (+ stacks-block-height duration-blocks),
+      claimed: u0,
+      cancelled: false
+    })
+    ;; In production: transfer STX from payer to contract
+    (ok id)))
+
+(define-public (claim (stream-id uint))
+  (let ((s (unwrap! (map-get? streams stream-id) err-stream-not-found)))
+    (asserts! (is-eq (get recipient s) tx-sender) err-not-recipient)
+    (asserts! (not (get cancelled s)) err-already-cancelled)
+    (let ((accrued (calculate-accrued s)))
+      (asserts! (> accrued u0) err-nothing-to-claim)
+      (map-set streams stream-id (merge s {
+        claimed: (+ (get claimed s) accrued)
+      }))
+      ;; In production: transfer accrued STX to recipient
+      (ok accrued))))
+
+(define-public (cancel-stream (stream-id uint))
+  (let ((s (unwrap! (map-get? streams stream-id) err-stream-not-found)))
+    (asserts! (is-eq (get payer s) tx-sender) err-not-payer)
+    (asserts! (not (get cancelled s)) err-already-cancelled)
+    (let ((accrued (calculate-accrued s))
+          (remaining (- (get total-amount s) (+ (get claimed s) accrued))))
+      (map-set streams stream-id (merge s {
+        claimed: (+ (get claimed s) accrued),
+        cancelled: true
+      }))
+      ;; In production: send accrued to recipient, remaining to payer
+      (ok { accrued: accrued, refunded: remaining }))))`,
+  },
 ];
 
 export function getTemplate(slug: string): Template | undefined {
