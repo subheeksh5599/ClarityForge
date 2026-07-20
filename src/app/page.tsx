@@ -1,32 +1,108 @@
 "use client";
 
+import { useLayoutEffect, useRef } from "react";
 import Link from "next/link";
 import Nav from "../components/Nav";
 import Footer from "../components/Footer";
 
 export default function Home() {
+  const mainRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    let ctx: gsap.Context | null = null;
+
+    const init = async () => {
+      const { gsap } = await import("gsap");
+      const { ScrollTrigger } = await import("gsap/ScrollTrigger");
+      gsap.registerPlugin(ScrollTrigger);
+
+      ctx = gsap.context(() => {
+        // Hero staggered reveal
+        gsap.from("[data-hero-line]", {
+          autoAlpha: 0,
+          y: 40,
+          duration: 1,
+          ease: "power3.out",
+          stagger: 0.15,
+        });
+
+        // Section reveals
+        gsap.utils.toArray<HTMLElement>("[data-reveal]").forEach((el) => {
+          gsap.from(el, {
+            scrollTrigger: {
+              trigger: el,
+              start: "top 85%",
+              toggleActions: "play none none none",
+            },
+            autoAlpha: 0,
+            y: 30,
+            duration: 1.1,
+            ease: "power3.out",
+          });
+        });
+
+        // Workflow words stagger
+        gsap.utils.toArray<HTMLElement>("[data-reveal-word]").forEach((el) => {
+          gsap.from(el, {
+            scrollTrigger: {
+              trigger: el,
+              start: "top 82%",
+              toggleActions: "play none none none",
+            },
+            autoAlpha: 0,
+            y: 40,
+            duration: 1.2,
+            ease: "power3.out",
+          });
+        });
+
+        // Template cards stagger
+        const cards = gsap.utils.toArray<HTMLElement>("[data-reveal-card]");
+        if (cards.length) {
+          gsap.from(cards, {
+            scrollTrigger: {
+              trigger: cards[0].parentElement,
+              start: "top 82%",
+              toggleActions: "play none none none",
+            },
+            autoAlpha: 0,
+            y: 20,
+            duration: 0.8,
+            stagger: 0.06,
+            ease: "power3.out",
+          });
+        }
+      }, mainRef);
+    };
+
+    init();
+
+    return () => {
+      ctx?.revert();
+    };
+  }, []);
+
   return (
     <>
       <Nav />
 
-      <main className="animate-fade-in">
+      <main ref={mainRef} className="animate-fade-in">
         {/* HERO */}
         <section className="min-h-screen flex flex-col justify-center px-8 pt-16 pb-20">
           <div className="max-w-6xl mx-auto w-full">
             <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold leading-[0.96] tracking-[-0.04em] max-w-5xl">
-              Smart contracts
-              <br />
-              shouldn&apos;t need
-              <br />a terminal.
+              <span data-hero-line className="block">Smart contracts</span>
+              <span data-hero-line className="block">shouldn&apos;t need</span>
+              <span data-hero-line className="block">a terminal.</span>
             </h1>
 
-            <p className="text-lg sm:text-xl text-muted max-w-lg mt-10 leading-relaxed">
+            <p data-hero-line className="text-lg sm:text-xl text-muted max-w-lg mt-10 leading-relaxed">
               A browser playground for Clarity. Write, simulate, and deploy
               on Stacks — no CLI, no setup. Graduate to Clarinet when
               you&apos;re ready for production.
             </p>
 
-            <div className="flex items-center gap-6 mt-12">
+            <div data-hero-line className="flex items-center gap-6 mt-12">
               <Link
                 href="/demo"
                 className="inline-flex items-center h-12 px-8 text-sm font-medium text-bg bg-text hover:bg-text/90 transition-colors"
@@ -44,7 +120,7 @@ export default function Home() {
         </section>
 
         {/* FIG 1 — The Editor */}
-        <section className="pb-36 px-8">
+        <section data-reveal className="pb-36 px-8">
           <div className="max-w-6xl mx-auto">
             <p className="text-xs text-muted font-mono tracking-[0.2em] uppercase mb-8">
               Fig 1 — The editor
@@ -117,7 +193,10 @@ export default function Home() {
               ].map((s) => (
                 <div key={s.step} className="group">
                   <div className="text-xs text-muted/40 font-mono mb-4">{s.step}</div>
-                  <h2 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-[-0.03em] mb-6 text-muted group-hover:text-text transition-colors duration-500">
+                  <h2
+                    data-reveal-word
+                    className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-[-0.03em] mb-6 text-muted group-hover:text-text transition-colors duration-500"
+                  >
                     {s.word}
                   </h2>
                   <p className="text-lg text-muted max-w-xl leading-relaxed">{s.desc}</p>
@@ -128,7 +207,7 @@ export default function Home() {
         </section>
 
         {/* FIG 3 — Templates */}
-        <section className="pb-36 px-8">
+        <section data-reveal className="pb-36 px-8">
           <div className="max-w-6xl mx-auto">
             <p className="text-xs text-muted font-mono tracking-[0.2em] uppercase mb-8">
               Fig 3 — Templates
@@ -149,7 +228,12 @@ export default function Home() {
                 ["name-registry", "Name Registry", "BNS-style names"],
                 ["streaming", "Streaming", "Pay per block streams"],
               ].map(([slug, name, desc]) => (
-                <Link key={slug} href={`/demo?template=${slug}`} className="bg-bg p-8 hover:bg-text/[0.02] transition-colors cursor-pointer block">
+                <Link
+                  key={slug}
+                  data-reveal-card
+                  href={`/demo?template=${slug}`}
+                  className="bg-bg p-8 hover:bg-text/[0.02] transition-colors cursor-pointer block"
+                >
                   <h3 className="text-lg font-bold mb-1.5">{name}</h3>
                   <p className="text-sm text-muted">{desc}</p>
                 </Link>
@@ -159,7 +243,7 @@ export default function Home() {
         </section>
 
         {/* CTA */}
-        <section className="pb-40 px-8">
+        <section data-reveal className="pb-40 px-8">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.08] tracking-[-0.03em] max-w-4xl">
               Try Clarity in your browser.
