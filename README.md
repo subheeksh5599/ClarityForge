@@ -14,7 +14,7 @@
 
 ### Ethereum devs have Remix. Stacks devs had nothing. ClarityForge is the on-ramp.
 
-ClarityForge is a browser IDE for Clarity smart contracts. Open a tab, write a contract in seconds, run it against a **stateful in-browser VM**, analyze it with a **real tokenizer + analyzer** (with trait resolution), and deploy to Stacks **testnet** with your Leather or Xverse wallet — no CLI, no Rust toolchain, no chain setup. Eleven production-ready templates included. When you're ready for production, you graduate to Clarinet. ClarityForge is the step before it.
+ClarityForge is a browser IDE for Clarity smart contracts. Open a tab, write a contract in seconds, run it against a **stateful in-browser VM**, analyze it with a **real tokenizer + analyzer** (with trait resolution), and deploy to Stacks **testnet** with your Leather or Xverse wallet — no CLI, no Rust toolchain, no chain setup. Twelve production-ready templates included. Create your own on the dashboard. When you're ready for production, you graduate to Clarinet. ClarityForge is the step before it.
 
 ### ▶ Live now — write, simulate, and deploy at **[clarityforge-sigma.vercel.app](https://clarityforge-sigma.vercel.app)**
 
@@ -209,7 +209,7 @@ Every network reference is hardcoded to **testnet** — no mainnet path exists i
 
 ### 6 · Template library
 
-Eleven production-ready Clarity contracts, one click away — every one deploys cleanly on testnet:
+Twelve production-ready Clarity contracts, one click away — every one deploys cleanly on testnet:
 
 | Template | Tag | What it shows |
 |----------|-----|--------------|
@@ -224,6 +224,7 @@ Eleven production-ready Clarity contracts, one click away — every one deploys 
 | **Crowdfunding** | Payments | Goal-based fundraising with auto-refund if goal not met |
 | **Token Vesting** | DeFi | Cliff + linear vesting schedule, admin-managed beneficiaries |
 | **Name Registry** | Identity | BNS-style namespace → name → owner resolution |
+| **Streaming Payments** | Payments | Real-time money streaming — pay per block, cancel anytime |
 
 Each template opens in the editor with one click. Edit, analyze, simulate, deploy. All follow Stacks standards — SIP-010, SIP-009.
 
@@ -360,10 +361,16 @@ We want to be honest about what this project does and doesn't do:
 | Real testnet deploy | ✅ Real | Via wallet's `stx_deployContract`, with Hiro explorer links |
 | Deploy simulation (no wallet) | ✅ Real | Clearly labeled — generates a tx hash + contract ID for prototyping |
 | Clarinet integration | ✅ Real | Optional — runs `clarinet check` if the binary exists; else falls back to `"vm": "static"` |
-| Eleven templates, all deploy on testnet | ✅ Real | token, NFT, DAO, AMM, staking, multi-sig, escrow, auction, crowdfund, vesting, name-registry |
+| Twelve templates (+ custom), all deploy on testnet | ✅ Real | token, NFT, DAO, AMM, staking, multi-sig, escrow, auction, crowdfund, vesting, name-registry, streaming |
 | OG image, dark/light theme, file tabs, localStorage, download, call graph | ✅ Real | — |
 | Interact tab + execution trace + account balances | ✅ Real | Per-function execution against the VM |
-| | | |
+| Custom template creation + dashboard | ✅ Real | Create templates from browser, saved to localStorage, edit/delete |
+| Copy-to-clipboard on deploy output | ✅ Real | ⧉ button next to txHash and contractId |
+| Clickable state visualizer | ✅ Real | Click any definition to jump to that line in the editor |
+| GSAP scroll animations on landing | ✅ Real | Staggered hero reveal, section fade-ins, template card stagger |
+| Loading skeletons | ✅ Real | Animated skeleton components replace all "…" placeholders |
+| Persistent UI state | ✅ Real | Active tab and panel visibility saved to localStorage |
+|| | | |
 | Deep semantic validation (type checking, builtin arity) | ❌ Pending | Analyzer is syntactic — it does not check builtin arity. Use Clarinet. |
 | Trait resolution | ✅ Real | Full define-trait + impl-trait parsing, conformance checking, typed diagnostics |
 | Full Clarity runtime execution | ❌ Pending | VM is a simulator, not the real VM. Use Clarinet. |
@@ -480,7 +487,7 @@ src/
 - **Validation:** Optional Clarinet integration (`execSync`)
 - **Deployment:** Vercel (serverless)
 
-**Total runtime dependencies:** 5 — `next`, `react`, `react-dom`, `@monaco-editor/react`, `lucide-react`. The wallet, analyzer, VM, and templates are all hand-written — no third-party Stacks libraries.
+**Total runtime dependencies:** 6 — `next`, `react`, `react-dom`, `@monaco-editor/react`, `lucide-react`, `gsap`. The wallet, analyzer, VM, and templates are all hand-written — no third-party Stacks libraries.
 
 ---
 
