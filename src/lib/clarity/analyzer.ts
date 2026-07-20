@@ -32,31 +32,45 @@ export interface AnalysisResult {
   };
 }
 
+// ── Trait resolution types ──
+
+export interface TraitFnSig {
+  name: string;
+  params: ParamDef[];
+  returnType: string;
+}
+
+export interface TraitDef {
+  name: string;
+  line: number;
+  functions: TraitFnSig[];
+}
+
+export interface ImplTraitRef {
+  traitRef: string;   // raw: '.my-trait' or ''STADDR.contract.trait'
+  line: number;
+  isExternal: boolean; // true if starts with ' (external principal reference)
+}
+
 // Extract parameters from a function definition.
-// Clarity signatures look like: (define-public (fn-name (p1 t1) (p2 t2)) body...)
-// The FIRST paren after the keyword wraps the function name + its parameter list;
-// each parameter is a nested (name type) paren inside that wrapper.
 function extractFnParams(tokens: Token[], startIdx: number): ParamDef[] {
   const params: ParamDef[] = [];
 
-  // Locate the signature-wrapper paren: the first "(" after the define-* keyword.
   let j = startIdx + 1;
   while (j < tokens.length && tokens[j].type !== "lparen") j++;
   if (j >= tokens.length) return params;
 
-  j++; // step inside the signature wrapper
+  j++;
 
-  // Skip the function name (first token inside the wrapper that isn't a paren).
   if (j < tokens.length && tokens[j].type !== "lparen" && tokens[j].type !== "rparen") j++;
 
-  let depth = 1; // we are inside the signature wrapper
+  let depth = 1;
   while (j < tokens.length && depth > 0) {
     const t = tokens[j];
 
     if (t.type === "rparen") { depth--; j++; continue; }
 
     if (t.type === "lparen") {
-      // Parse a single parameter list: (name type...)
       j++;
       let pd = 1;
       let name: string | undefined;
@@ -95,9 +109,96 @@ function extractFnParams(tokens: Token[], startIdx: number): ParamDef[] {
   return params;
 }
 
+// Parse trait function signatures from tokens inside a define-trait body.
+// The body looks like: ((fn1 (p1 t1) (response ok err)) (fn2 ...))
+function parseTraitFunctions(tokens: Token[], startIdx: number): TraitFnSig[] {
+  const functions: TraitFnSig[] = [];
+
+  // Find the opening paren of the trait body (after the trait name)
+  let j = startIdx + 1; // skip 'define-trait'
+  while (j < tokens.length && tokens[j].type !== "identifier") j++;
+  if (j >= tokens.length) return functions;
+  j++; // skip trait name
+
+  // Find the wrapper paren: the ( that wraps all function signatures
+  while (j < tokens.length && tokens[j].type !== "lparen") j++;
+  if (j >= tokens.length) return functions;
+
+  // We're at the wrapper ( — now each top-level inner ( is a function signature
+  j++; // step into wrapper
+  let depth = 1;
+  while (j < tokens.length && depth > 0) {
+    const t = tokens[j];
+
+    if (t.type === "rparen") { depth--; j++; continue; }
+
+    if (t.type === "lparen") {
+      // This is a function signature: (fn-name (p1 t1) (p2 t2) (response ok err))
+      const sigStart = j;
+      j++;
+      let sd = 1;
+      const sigTokens: Token[] = [];
+
+      while (j < tokens.length && sd > 0) {
+        const st = tokens[j];
+        if (st.type === "lparen") sd++;
+        if (st.type === "rparen") sd--;
+        if (sd > 0) sigTokens.push(st);
+        j++;
+      }
+
+      // Parse the signature tokens
+      if (sigTokens.length > 0) {
+        const fnName = sigTokens[0].value;
+        const params: ParamDef[] = [];
+        let returnType = "unknown";
+
+        // Walk rest of tokens: each ( is either a param or response
+        let k = 1;
+        while (k < sigTokens.length) {
+          if (sigTokens[k].type === "lparen") {
+            // Parse this paren group
+            k++;
+            const groupParts: string[] = [];
+            let gd = 1;
+            while (k < sigTokens.length && gd > 0) {
+              const gt = sigTokens[k];
+              if (gt.type === "lparen") gd++;
+              if (gt.type === "rparen") { gd--; if (gd === 0) { k++; break; } }
+              if (gd > 0) groupParts.push(gt.value);
+              k++;
+            }
+
+            const groupStr = groupParts.join(" ");
+            if (groupParts[0] === "response") {
+              returnType = `(response ${groupParts.slice(1).join(" ")})`;
+            } else {
+              // It's a param: (name type)
+              const pName = groupParts[0];
+              const pType = groupParts.slice(1).join(" ") || "unknown";
+              params.push({ name: pName, type: pType });
+            }
+          } else {
+            k++;
+          }
+        }
+
+        functions.push({ name: fnName, params, returnType });
+      }
+      continue;
+    }
+
+    j++;
+  }
+
+  return functions;
+}
+
 export function analyze(source: string): AnalysisResult {
   const diagnostics: Diagnostic[] = [];
   const definitions: Definition[] = [];
+  const traitDefs: TraitDef[] = [];
+  const implTraits: ImplTraitRef[] = [];
 
   // 1. Tokenize
   let tokens: Token[];
@@ -144,7 +245,6 @@ export function analyze(source: string): AnalysisResult {
     const t = nonWhitespace[i];
 
     if (t.type === "keyword") {
-      // define-fungible-token <name> <amount>
       if (t.value === "define-fungible-token") {
         const nameTok = nonWhitespace[i + 1];
         if (nameTok && nameTok.type === "identifier") {
@@ -153,7 +253,6 @@ export function analyze(source: string): AnalysisResult {
         continue;
       }
 
-      // define-non-fungible-token <name> <type>
       if (t.value === "define-non-fungible-token") {
         const nameTok = nonWhitespace[i + 1];
         if (nameTok && nameTok.type === "identifier") {
@@ -162,7 +261,6 @@ export function analyze(source: string): AnalysisResult {
         continue;
       }
 
-      // define-data-var <name> <type> <default>
       if (t.value === "define-data-var") {
         const nameTok = nonWhitespace[i + 1];
         if (nameTok && nameTok.type === "identifier") {
@@ -171,7 +269,6 @@ export function analyze(source: string): AnalysisResult {
         continue;
       }
 
-      // define-map <name> <key-type> <value-type>
       if (t.value === "define-map") {
         const nameTok = nonWhitespace[i + 1];
         if (nameTok && nameTok.type === "identifier") {
@@ -180,10 +277,8 @@ export function analyze(source: string): AnalysisResult {
         continue;
       }
 
-      // define-public ( <name> ... )
       if (t.value === "define-public") {
-        const next = nonWhitespace[i + 1]; // (
-        const nameTok = nonWhitespace[i + 2]; // name
+        const nameTok = nonWhitespace[i + 2];
         if (nameTok && nameTok.type === "identifier") {
           const params = extractFnParams(nonWhitespace, i);
           definitions.push({ type: "public-fn", name: nameTok.value, line: t.line, params });
@@ -191,9 +286,7 @@ export function analyze(source: string): AnalysisResult {
         continue;
       }
 
-      // define-read-only ( <name> ... )
       if (t.value === "define-read-only") {
-        const next = nonWhitespace[i + 1];
         const nameTok = nonWhitespace[i + 2];
         if (nameTok && nameTok.type === "identifier") {
           const params = extractFnParams(nonWhitespace, i);
@@ -202,9 +295,7 @@ export function analyze(source: string): AnalysisResult {
         continue;
       }
 
-      // define-private ( <name> ... )
       if (t.value === "define-private") {
-        const next = nonWhitespace[i + 1];
         const nameTok = nonWhitespace[i + 2];
         if (nameTok && nameTok.type === "identifier") {
           const params = extractFnParams(nonWhitespace, i);
@@ -213,7 +304,6 @@ export function analyze(source: string): AnalysisResult {
         continue;
       }
 
-      // define-constant <name> <value>
       if (t.value === "define-constant") {
         const nameTok = nonWhitespace[i + 1];
         if (nameTok && nameTok.type === "identifier") {
@@ -227,18 +317,136 @@ export function analyze(source: string): AnalysisResult {
         const nameTok = nonWhitespace[i + 1];
         if (nameTok && nameTok.type === "identifier") {
           definitions.push({ type: "trait", name: nameTok.value, line: t.line });
+          // Parse trait function signatures
+          const traitFns = parseTraitFunctions(nonWhitespace, i);
+          traitDefs.push({
+            name: nameTok.value,
+            line: t.line,
+            functions: traitFns,
+          });
+          // Add info diagnostic showing what functions were parsed
+          if (traitFns.length > 0) {
+            diagnostics.push({
+              line: t.line,
+              col: t.col,
+              message: `Trait '${nameTok.value}' requires ${traitFns.length} function(s): ${traitFns.map(f => f.name).join(", ")}`,
+              severity: "info",
+            });
+          }
+        }
+        continue;
+      }
+
+      // impl-trait <trait-ref>
+      if (t.value === "impl-trait") {
+        const refTok = nonWhitespace[i + 1];
+        if (refTok) {
+          const isExternal = refTok.value.startsWith("'");
+          implTraits.push({
+            traitRef: refTok.value,
+            line: t.line,
+            isExternal,
+          });
         }
         continue;
       }
     }
   }
 
-  // 4. Check for common issues
+  // ── 4. Trait resolution — check impl-trait conformance ──
+  for (const impl of implTraits) {
+    // Resolve trait reference
+    let targetTrait: TraitDef | undefined;
+
+    if (impl.isExternal) {
+      // External trait: 'STADDR.contract.trait — cannot verify locally
+      diagnostics.push({
+        line: impl.line,
+        col: 1,
+        message: `impl-trait references external trait ${impl.traitRef} — conformance cannot be verified locally`,
+        severity: "info",
+      });
+      continue;
+    }
+
+    // Local trait reference: .trait-name or .contract.trait-name
+    // Strip leading dot(s), take the last segment as trait name
+    const ref = impl.traitRef.replace(/^\.+/, "");
+    // If dotted, take the last part as the trait name
+    const traitName = ref.includes(".") ? ref.split(".").pop()! : ref;
+
+    targetTrait = traitDefs.find((td) => td.name === traitName);
+
+    if (!targetTrait) {
+      diagnostics.push({
+        line: impl.line,
+        col: 1,
+        message: `Cannot resolve trait '${impl.traitRef}' — no define-trait with name '${traitName}' found in this contract`,
+        severity: "error",
+      });
+      continue;
+    }
+
+    // Check that all required trait functions exist in the contract
+    const contractFnNames = new Set(
+      definitions
+        .filter((d) => d.type === "public-fn" || d.type === "read-only-fn" || d.type === "private-fn")
+        .map((d) => d.name)
+    );
+
+    for (const reqFn of targetTrait.functions) {
+      if (!contractFnNames.has(reqFn.name)) {
+        diagnostics.push({
+          line: impl.line,
+          col: 1,
+          message: `Trait '${targetTrait.name}' requires function '${reqFn.name}' but it is not defined in this contract`,
+          severity: "error",
+        });
+        continue;
+      }
+
+      // Check signature match
+      const contractFn = definitions.find(
+        (d) =>
+          (d.type === "public-fn" || d.type === "read-only-fn" || d.type === "private-fn") &&
+          d.name === reqFn.name
+      );
+
+      if (contractFn && contractFn.params) {
+        // Compare params
+        if (contractFn.params.length !== reqFn.params.length) {
+          diagnostics.push({
+            line: impl.line,
+            col: 1,
+            message: `Function '${reqFn.name}': trait expects ${reqFn.params.length} param(s) but contract provides ${contractFn.params.length}`,
+            severity: "error",
+          });
+        } else {
+          for (let pi = 0; pi < reqFn.params.length; pi++) {
+            const reqP = reqFn.params[pi];
+            const gotP = contractFn.params[pi];
+            if (reqP.type !== gotP.type && gotP.type !== "unknown" && reqP.type !== "unknown") {
+              diagnostics.push({
+                line: impl.line,
+                col: 1,
+                message: `Function '${reqFn.name}' param '${reqP.name}': trait expects type '${reqP.type}' but contract has '${gotP.type}'`,
+                severity: "error",
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Check no extra functions: only needed if strict mode — skip for now.
+  }
+
+  // 5. Check for common issues
   if (nonWhitespace.length === 0) {
     diagnostics.push({ line: 1, col: 1, message: "Contract is empty", severity: "warning" });
   }
 
-  // 5. Compute stats
+  // 6. Compute stats
   const totalLines = source.split("\n").length;
   const fnDefs = definitions.filter((d) =>
     d.type === "public-fn" || d.type === "read-only-fn" || d.type === "private-fn"
@@ -246,7 +454,6 @@ export function analyze(source: string): AnalysisResult {
   const dataVars = definitions.filter((d) => d.type === "data-var").length;
   const maps = definitions.filter((d) => d.type === "map").length;
 
-  // If no errors from paren-matching but code is non-empty, it's valid
   const hasErrors = diagnostics.some((d) => d.severity === "error");
   const valid = !hasErrors && nonWhitespace.length > 0;
 
@@ -271,7 +478,6 @@ export function analyzeCost(_source: string): number {
 }
 
 // Build a call graph from definitions and source code
-// Returns nodes and edges showing which functions reference which
 export interface CallGraphNode {
   name: string;
   type: string;
@@ -282,26 +488,22 @@ export function buildCallGraph(source: string, definitions: Definition[]): CallG
   const fnDefs = definitions.filter(
     (d) => d.type === "public-fn" || d.type === "read-only-fn" || d.type === "private-fn"
   );
-  
+
   if (fnDefs.length === 0) return [];
-  
+
   const fnNames = new Set(fnDefs.map((d) => d.name));
   const nodes: CallGraphNode[] = [];
-  
-  // For each function, find what other functions it references
+
   for (const fn of fnDefs) {
     const calls: string[] = [];
-    
-    // Simple heuristic: find the function body and look for other function names
-    // Look for the pattern: (fn-name in the source after the function definition
+
     const fnRegex = new RegExp(`define-(?:public|read-only|private)\\s*\\(\\s*${fn.name}[\\s\\S]*?\\)\\s*([\\s\\S]*?)(?:\\(define-|$)`, 'm');
     const match = source.match(fnRegex);
-    
+
     if (match && match[1]) {
       const body = match[1];
       for (const otherFn of fnNames) {
         if (otherFn !== fn.name) {
-          // Check if the function name appears in the body
           const escaped = otherFn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const refRegex = new RegExp(`\\b${escaped}\\b`);
           if (refRegex.test(body)) {
@@ -310,13 +512,13 @@ export function buildCallGraph(source: string, definitions: Definition[]): CallG
         }
       }
     }
-    
+
     nodes.push({
       name: fn.name,
       type: fn.type,
       calls,
     });
   }
-  
+
   return nodes;
 }
