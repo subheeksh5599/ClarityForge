@@ -69,6 +69,14 @@ function DemoContent() {
     });
   };
 
+  const navigateToLine = (line: number) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.revealLineInCenter(line);
+    editor.setPosition({ lineNumber: line, column: 1 });
+    editor.focus();
+  };
+
   // Render output with clickable links
   const renderOutput = (text: string | null) => {
     if (!text) return null;
@@ -592,7 +600,7 @@ function DemoContent() {
                 <div>
                   {txHash && <div className="mb-4 pb-4 border-b border-line"><p className="text-[10px] text-muted font-mono uppercase tracking-wider mb-0.5">Deployment</p><p className="font-mono text-[10px] text-muted">{wallet.connected ? "Testnet via Leather/Xverse" : "Simulated"}</p></div>}
                   {viewMode === "visual" && analysisResult ? (
-                    <StateVisualizer result={analysisResult as any} costEstimate={(analysisResult as any).costEstimate} sourceCode={code} />
+                    <StateVisualizer result={analysisResult as any} costEstimate={(analysisResult as any).costEstimate} sourceCode={code} onNavigateToLine={navigateToLine} />
                   ) : viewMode === "interact" && analysisResult ? (
                     <InteractPanel analysisResult={analysisResult} selectedFn={selectedFn} setSelectedFn={setSelectedFn} fnParams={fnParams} setFnParams={setFnParams} execResult={execResult} setExecResult={setExecResult} envMode={envMode} vmStateRef={vmStateRef} selectedAccount={selectedAccount} onVmStateChange={updateVmState} />
                   ) : (
