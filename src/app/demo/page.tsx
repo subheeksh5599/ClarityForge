@@ -58,6 +58,16 @@ function DemoContent() {
   const wallet = useWallet();
   const { theme } = useTheme();
 
+  // ── Cursor position ──
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
+
+  const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
+    editorRef.current = editor;
+    editor.onDidChangeCursorPosition((e) => {
+      setCursorPos({ line: e.position.lineNumber, col: e.position.column });
+    });
+  };
+
   // Render output with clickable links
   const renderOutput = (text: string | null) => {
     if (!text) return null;
@@ -412,7 +422,7 @@ function DemoContent() {
               onClick={() => { if (renamingFile !== f.id) setActiveFileId(f.id); }}
               onDoubleClick={() => startRename(f)}
               className={`group flex items-center gap-1.5 px-3 py-2 text-[11px] font-mono border-r border-line transition-colors shrink-0 ${
-                f.id === activeFileId ? "text-text bg-surface border-b border-b-[#0A0A0B] -mb-px" : "text-muted hover:text-text"
+                f.id === activeFileId ? "text-text bg-surface border-b border-b-surface -mb-px" : "text-muted/60 hover:text-text hover:bg-text/[0.02]"
               }`}
             >
               {renamingFile === f.id ? (
@@ -442,19 +452,19 @@ function DemoContent() {
       </div>
 
       {/* Run/Deploy bar */}
-      <div className="flex items-center justify-between px-4 h-8 border-b border-line bg-bg shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-muted font-mono">{activeFile.name}</span>
+      <div className="flex items-center justify-between px-4 h-9 border-b border-line bg-bg shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-muted/60 font-mono">{activeFile.name}</span>
           {/* Environment selector */}
-          <div className="flex items-center border border-line rounded-sm ml-2">
+          <div className="flex items-center border border-line rounded-sm">
             {(["vm", "clarinet", "deploy"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setEnvMode(m)}
-                className={`text-[9px] font-mono px-2 py-0.5 ${
+                className={`text-[10px] font-mono px-2.5 py-1 transition-colors ${
                   envMode === m
                     ? "bg-text/10 text-text"
-                    : "text-muted hover:text-text"
+                    : "text-muted/60 hover:text-text hover:bg-text/[0.03]"
                 } ${m !== "vm" ? "border-l border-line" : ""}`}
               >
                 {m === "vm" ? "VM" : m === "clarinet" ? "Clarinet" : "Deploy"}
@@ -462,33 +472,44 @@ function DemoContent() {
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button onClick={handleRun} disabled={running}
-            className={`flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium ${running ? "text-muted" : "text-bg bg-text hover:bg-text/90"}`}>
-            ▶ {running ? "…" : envMode === "vm" ? "Run" : "Check"}
+            className={`flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-medium transition-colors ${
+              running
+                ? "text-muted/40 cursor-not-allowed"
+                : "text-bg bg-text hover:bg-text/85 active:bg-text/70"
+            }`}>
+            ▶ {running ? "Running…" : envMode === "vm" ? "Run" : "Check"}
           </button>
           <button onClick={handleDeploy} disabled={deploying}
-            className={`flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium border border-line ${deploying ? "text-muted" : "text-text hover:bg-text/5"}`}>
-            ↑ {deploying ? "…" : "Deploy"}
+            className={`flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-medium border border-line transition-colors ${
+              deploying
+                ? "text-muted/40 cursor-not-allowed border-muted/20"
+                : "text-text hover:border-text/30 hover:bg-text/[0.03] active:bg-text/[0.05]"
+            }`}>
+            ↑ {deploying ? "Deploying…" : "Deploy"}
           </button>
           <button
             onClick={wallet.connected ? wallet.disconnectWallet : wallet.connectWallet}
             disabled={wallet.connecting}
-            className={`flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium border border-line ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border border-line transition-colors ${
               wallet.connected
-                ? "border-text/30 text-text hover:bg-text/5"
-                : "text-muted hover:text-text"
+                ? "border-text/20 text-text hover:border-text/40 hover:bg-text/[0.03]"
+                : "text-muted hover:text-text hover:border-text/20 hover:bg-text/[0.03]"
             }`}
             title={wallet.connected ? `Connected: ${wallet.address?.slice(0, 8)}…` : "Connect wallet for real deployment"}
           >
-            {wallet.connecting ? "…" : wallet.connected ? "◉ Wallet" : "○ Connect"}
+            {wallet.connecting ? "Connecting…" : wallet.connected ? "◉ Wallet" : "○ Connect"}
           </button>
           <button onClick={handleDownload}
-            className="flex items-center gap-1 px-3 py-0.5 text-[11px] font-medium border border-line text-muted hover:text-text">
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border border-line text-muted hover:text-text hover:border-text/20 hover:bg-text/[0.03] transition-colors">
             ↓ Save
           </button>
           <button onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            className="px-2 py-0.5 text-[11px] text-muted hover:text-text font-mono ml-1">{rightPanelOpen ? "◢" : "◰"}</button>
+            className="px-2 py-1.5 text-[11px] text-muted/60 hover:text-text font-mono transition-colors"
+            title={rightPanelOpen ? "Close panel" : "Open panel"}>
+            {rightPanelOpen ? "◢" : "◰"}
+          </button>
         </div>
       </div>
 
@@ -496,7 +517,7 @@ function DemoContent() {
       <div id="ide-container" className="flex-1 flex min-h-0">
         <div style={{ width: rightPanelOpen ? `${splitRatio}%` : "100%" }}>
           <MonacoEditor language="clarity" theme={theme === "dark" ? "clarityforge-dark" : "clarityforge-light"} value={code} onChange={(v) => setCode(v || "")}
-            onMount={(editor) => { editorRef.current = editor; }}
+            onMount={(editor) => { handleEditorMount(editor); }}
             beforeMount={(monaco) => {
               // Register Clarity language (guarded against HMR re-registration)
               const existing = monaco.languages.getLanguages().find((l: { id: string }) => l.id === "clarity");
@@ -559,10 +580,10 @@ function DemoContent() {
 
         {rightPanelOpen && (
           <div style={{ width: `${100 - splitRatio}%` }} className="border-l border-line flex flex-col min-h-0 bg-surface-alt">
-            <div className="flex items-center border-b border-line shrink-0 px-2">
+            <div className="flex items-center border-b border-line shrink-0">
               {(["visual", "interact", "text"] as const).map((m) => (
                 <button key={m} onClick={() => setViewMode(m)}
-                  className={`px-3 py-2 text-[11px] font-mono capitalize border-b-2 -mb-px ${viewMode === m ? "text-text border-text" : "text-muted border-transparent hover:text-text"}`}>{m}</button>
+                  className={`px-3 py-2 text-[11px] font-mono capitalize border-b-2 -mb-px transition-colors ${viewMode === m ? "text-text border-text" : "text-muted/50 border-transparent hover:text-muted hover:border-muted/30"}`}>{m}</button>
               ))}
             </div>
             <div className="flex-1 overflow-auto p-6">
@@ -613,18 +634,23 @@ function DemoContent() {
       </div>
 
       {/* Status bar */}
-      <div className="flex items-center justify-between px-4 h-6 border-t border-line bg-bg text-[10px] font-mono text-muted shrink-0">
-        <div className="flex items-center gap-3">
-          <span>{activeFile.name}</span>
-          {analysisResult && <span className="text-text/60">{(analysisResult as any).valid ? "✓" : "✗"}</span>}
-          {analysisResult && (analysisResult as any).vm && <span>{(analysisResult as any).vm}</span>}
+      <div className="flex items-center justify-between px-4 h-6 border-t border-line bg-bg text-[10px] font-mono shrink-0">
+        <div className="flex items-center gap-4">
+          <span className="text-muted/60">{activeFile.name}</span>
+          {analysisResult && (
+            <span className={analysisResult && (analysisResult as any).valid ? "text-green-500/60" : "text-red-400/60"}>
+              {(analysisResult as any).valid ? "✓" : "✗"}
+            </span>
+          )}
+          {analysisResult && (analysisResult as any).vm && (
+            <span className="text-muted/40">{(analysisResult as any).vm}</span>
+          )}
         </div>
-        <div className="flex items-center gap-3">
-          {analysisResult && <span>{(analysisResult as any).stats?.totalLines ?? 0} lines</span>}
-          <span>ClarityForge</span>
-          <span className="text-[9px] text-muted/50">·</span>
-          <span className="text-[9px] text-muted/50">{envMode === "vm" ? "VM" : envMode === "clarinet" ? "Clarinet" : "Deploy"}</span>
-          <span className="text-[9px] text-muted/50">· Ctrl+S to run</span>
+        <div className="flex items-center gap-4">
+          <span className="text-muted/40">Ln {cursorPos.line}, Col {cursorPos.col}</span>
+          {analysisResult && <span className="text-muted/40">{(analysisResult as any).stats?.totalLines ?? 0} lines</span>}
+          <span className="text-muted/40">{envMode === "vm" ? "VM" : envMode === "clarinet" ? "Clarinet" : "Deploy"}</span>
+          <span className="text-muted/30">{files.length} file{files.length !== 1 ? "s" : ""}</span>
         </div>
       </div>
     </div>
