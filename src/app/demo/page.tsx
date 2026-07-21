@@ -74,6 +74,41 @@ function DemoContent() {
   // ── Cursor position ──
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
 
+  // ── Share snippet ──
+  const [shareCopied, setShareCopied] = useState(false);
+
+  // Load code from URL hash on mount
+  useEffect(() => {
+    try {
+      const hash = window.location.hash?.slice(1); // remove #
+      if (!hash || hash.startsWith("template=")) return; // new format only
+      const decoded = decodeURIComponent(atob(hash));
+      if (decoded && decoded.trim().length > 0 && decoded !== code) {
+        const newFile: FileTab = { id: nextFileId(), name: "shared.clar", code: decoded };
+        setFiles((prev) => [...prev, newFile]);
+        setActiveFileId(newFile.id);
+      }
+    } catch { /* invalid hash — ignore */ }
+  }, []);
+
+  const handleShare = () => {
+    try {
+      const encoded = btoa(encodeURIComponent(code));
+      const url = `${window.location.origin}/demo#${encoded}`;
+      navigator.clipboard.writeText(url).then(() => {
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      }).catch(() => {
+        // Fallback: update URL hash so user can copy from address bar
+        window.location.hash = encoded;
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      });
+    } catch {
+      // Code too large or invalid chars
+    }
+  };
+
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
     editor.onDidChangeCursorPosition((e) => {
@@ -504,16 +539,16 @@ function DemoContent() {
     <div className="h-svh flex flex-col bg-surface pt-16">
       <Nav />
 
-      {/* File tabs toolbar */}
+      {/* Toolbar: file tabs + actions merged */}
       <div className="flex items-center border-b border-line bg-bg shrink-0">
-        <div className="flex items-center flex-1 overflow-x-auto">
+        <div className="flex items-center flex-1 overflow-x-auto min-w-0">
           {files.map((f) => (
             <button
               key={f.id}
               onClick={() => { if (renamingFile !== f.id) setActiveFileId(f.id); }}
               onDoubleClick={() => startRename(f)}
               className={`group flex items-center gap-1.5 px-3 py-2 text-[11px] font-mono border-r border-line transition-colors shrink-0 ${
-                f.id === activeFileId ? "text-text bg-surface border-b border-b-surface -mb-px" : "text-muted/60 hover:text-text hover:bg-text/[0.02]"
+                f.id === activeFileId ? "text-text bg-surface" : "text-muted/60 hover:text-text hover:bg-text/[0.02]"
               }`}
             >
               {renamingFile === f.id ? (
@@ -538,21 +573,17 @@ function DemoContent() {
               )}
             </button>
           ))}
+          <button onClick={addNewFile} className="px-2.5 py-2 text-[11px] text-muted hover:text-text font-mono shrink-0">+</button>
         </div>
-        <button onClick={addNewFile} className="px-3 py-2 text-[11px] text-muted hover:text-text font-mono border-l border-line shrink-0">+</button>
-      </div>
 
-      {/* Run/Deploy bar */}
-      <div className="flex items-center justify-between px-4 h-9 border-b border-line bg-bg shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] text-muted/60 font-mono">{activeFile.name}</span>
+        <div className="flex items-center gap-1.5 px-3 border-l border-line shrink-0">
           {/* Environment selector */}
-          <div className="flex items-center border border-line rounded-sm">
+          <div className="flex items-center border border-line rounded-sm mr-1">
             {(["vm", "clarinet", "deploy"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setEnvMode(m)}
-                className={`text-[10px] font-mono px-2.5 py-1 transition-colors ${
+                className={`text-[10px] font-mono px-2 py-1 transition-colors ${
                   envMode === m
                     ? "bg-text/10 text-text"
                     : "text-muted/60 hover:text-text hover:bg-text/[0.03]"
@@ -562,42 +593,50 @@ function DemoContent() {
               </button>
             ))}
           </div>
-        </div>
-        <div className="flex items-center gap-1.5">
           <button onClick={handleRun} disabled={running}
-            className={`flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-medium transition-colors ${
+            className={`flex items-center gap-1 px-3 py-1 text-[11px] font-medium transition-colors ${
               running
                 ? "text-muted/40 cursor-not-allowed"
                 : "text-bg bg-text hover:bg-text/85 active:bg-text/70"
             }`}>
-            ▶ {running ? "Running…" : envMode === "vm" ? "Run" : "Check"}
+            ▶ {running ? "…" : envMode === "vm" ? "Run" : "Check"}
           </button>
           <button onClick={handleDeploy} disabled={deploying}
-            className={`flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-medium border border-line transition-colors ${
+            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium border border-line transition-colors ${
               deploying
                 ? "text-muted/40 cursor-not-allowed border-muted/20"
                 : "text-text hover:border-text/30 hover:bg-text/[0.03] active:bg-text/[0.05]"
             }`}>
-            ↑ {deploying ? "Deploying…" : "Deploy"}
+            ↑ {deploying ? "…" : "Deploy"}
+          </button>
+          <button onClick={handleShare}
+            className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium border border-line transition-colors ${
+              shareCopied
+                ? "text-green-400 border-green-500/30"
+                : "text-muted hover:text-text hover:border-text/20 hover:bg-text/[0.03]"
+            }`}
+            title="Copy shareable link">
+            {shareCopied ? "✓ Copied" : "↗ Share"}
           </button>
           <button
             onClick={wallet.connected ? wallet.disconnectWallet : wallet.connectWallet}
             disabled={wallet.connecting}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border border-line transition-colors ${
+            className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium border border-line transition-colors ${
               wallet.connected
                 ? "border-text/20 text-text hover:border-text/40 hover:bg-text/[0.03]"
                 : "text-muted hover:text-text hover:border-text/20 hover:bg-text/[0.03]"
             }`}
             title={wallet.connected ? `Connected: ${wallet.address?.slice(0, 8)}…` : "Connect wallet for real deployment"}
           >
-            {wallet.connecting ? "Connecting…" : wallet.connected ? "◉ Wallet" : "○ Connect"}
+            {wallet.connecting ? "…" : wallet.connected ? "◉" : "○"}
           </button>
           <button onClick={handleDownload}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border border-line text-muted hover:text-text hover:border-text/20 hover:bg-text/[0.03] transition-colors">
-            ↓ Save
+            className="px-2 py-1 text-[11px] text-muted hover:text-text font-mono transition-colors"
+            title="Download .clar file">
+            ↓
           </button>
           <button onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            className="px-2 py-1.5 text-[11px] text-muted/60 hover:text-text font-mono transition-colors"
+            className="px-1.5 py-1 text-[11px] text-muted/50 hover:text-text font-mono transition-colors"
             title={rightPanelOpen ? "Close panel" : "Open panel"}>
             {rightPanelOpen ? "◢" : "◰"}
           </button>
