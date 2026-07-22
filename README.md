@@ -14,7 +14,19 @@
 
 ### Stacks has a CLI playground. It didn't have a visual IDE. ClarityForge is that.
 
-ClarityForge is a browser IDE for Clarity smart contracts. Open a tab, write a contract in seconds, run it against a **stateful in-browser VM**, analyze it with a **real tokenizer + analyzer** (with trait resolution), and deploy to Stacks **testnet** with your Leather or Xverse wallet — no CLI, no Rust toolchain, no chain setup. Twelve production-ready templates included. Create your own on the dashboard. When you're ready for production, you graduate to Clarinet. ClarityForge is the step before it.
+| | ClarityForge | Stacks Labs Playground | Clarinet | VSCode Extension |
+|---|:---:|:---:|:---:|:---:|
+| **Runs in browser** | ✅ | ✅ | ❌ (local CLI) | ❌ (desktop) |
+| **Monaco code editor** | ✅ | ❌ (terminal only) | ❌ | ✅ |
+| **One-click templates** | ✅ 12 | ❌ | ❌ | ❌ |
+| **Visual state inspector** | ✅ | ❌ | ❌ | ❌ |
+| **Interact panel (call functions)** | ✅ | ❌ | ✅ (CLI) | ❌ |
+| **Wallet deploy to testnet** | ✅ | ❌ | ❌ | ❌ |
+| **Shareable snippet links** | ✅ | ❌ | ❌ | ❌ |
+| **Zero install / signup** | ✅ | ✅ | ❌ | ❌ |
+| **Clarinet SDK / real VM** | ❌ (simulator) | ✅ | ✅ | ✅ |
+
+ClarityForge is not a replacement for Clarinet or the playground — it's the missing visual layer. Write, analyze, simulate, and deploy in a browser tab. When you're ready for production, graduate to Clarinet.
 
 ### ▶ Live now — write, simulate, and deploy at **[clarityforge-sigma.vercel.app](https://clarityforge-sigma.vercel.app)**
 
