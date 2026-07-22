@@ -12,7 +12,7 @@
 ![Deps](https://img.shields.io/badge/runtime%20deps-4-3fb950)
 ![Stack](https://img.shields.io/badge/Next.js%2016%20·%20React%2019%20·%20TypeScript%20·%20Monaco%20·%20Tailwind-0C0C0D)
 
-### Ethereum devs have Remix. Stacks devs had nothing. ClarityForge is the on-ramp.
+### Stacks has a CLI playground. It didn't have a visual IDE. ClarityForge is that.
 
 ClarityForge is a browser IDE for Clarity smart contracts. Open a tab, write a contract in seconds, run it against a **stateful in-browser VM**, analyze it with a **real tokenizer + analyzer** (with trait resolution), and deploy to Stacks **testnet** with your Leather or Xverse wallet — no CLI, no Rust toolchain, no chain setup. Twelve production-ready templates included. Create your own on the dashboard. When you're ready for production, you graduate to Clarinet. ClarityForge is the step before it.
 
@@ -118,7 +118,7 @@ That's the entire product: parse → analyze → simulate → (with a wallet) re
 Getting started with Clarity today means a wall of setup before you write a single line:
 
 - **Install the Rust toolchain** — Clarinet is the gold standard, but it's a native binary and a project scaffold before you can type `(ok true)`.
-- **No zero-setup playground** — Ethereum has Remix (500K+ monthly users) where anyone can experiment in a browser tab. Stacks had no equivalent.
+- **No zero-setup visual IDE** — Stacks Labs built a great [CLI-style playground](https://play.stackslabs.com) (REPL with Clarinet SDK). Ethereum has Remix (500K+ monthly users) with a full visual editor, state inspector, and deploy pipeline. Stacks was missing that visual layer — until now.
 - **The feedback loop is slow for learning** — spin up a project, write, `clarinet check`, read the output, repeat. Great for production, heavy for a first hour.
 - **Templates are scattered** — SIP-010, SIP-009, DAO, AMM patterns live across docs and repos, not one click away.
 
@@ -136,15 +136,16 @@ The rule is enforced at **three** levels:
 2. **Copy** — Every page, this README, the landing copy, and the editor footer say the same thing: graduate to Clarinet for production.
 3. **Scope** — No test framework, no CI integration, no mainnet deploy. Those are Clarinet's domain. We stay in our lane — the on-ramp.
 
-What we learned from three previous attempts:
+What we learned from the ecosystem's history:
 
-| Project | What they tried | What broke |
-|---------|----------------|------------|
+| Project | What they did | Outcome |
+|---------|----------------|---------|
 | **clarity-wasm** | Compile the full Clarity VM (30K+ lines of Rust) to WebAssembly | Tied to stacks-core upstream — broke on every change, repo deleted |
 | **clarity-js-sdk** | Wrap the VM in JavaScript (413 commits over 5 years) | Wrapping a moving target is exhausting — archived |
 | **clarity-lsp** | Language server protocol for Clarity | Merged into Clarinet — the right call, consolidation beats fragmentation |
+| **Stacks Labs Playground** | CLI-style REPL in the browser (Clarinet SDK + Simnet) | ✅ Live at [play.stackslabs.com](https://play.stackslabs.com) — a great tool, but it's a terminal, not an IDE |
 
-Our approach: **pure TypeScript, zero upstream dependencies on the Clarity VM.** The tokenizer, analyzer, and simulator are self-contained. They don't execute real Clarity — but they cover most of what a browser playground needs, and they never break.
+Our approach: **pure TypeScript, zero upstream dependencies on the Clarity VM.** The tokenizer, analyzer, and simulator are self-contained. They don't execute real Clarity — but they cover most of what a browser playground needs, and they never break. ClarityForge adds what the REPL doesn't: a Monaco editor, visual state inspector, interact panel, 12 templates, wallet deploy, and shareable snippets.
 
 ---
 
