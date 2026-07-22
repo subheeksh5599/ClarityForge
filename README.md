@@ -28,6 +28,8 @@
 
 ClarityForge is not a replacement for Clarinet or the playground — it's the missing visual layer. Write, analyze, simulate, and deploy in a browser tab. When you're ready for production, graduate to Clarinet.
 
+**This is not finished.** The editor, VM, templates, and deploy pipeline all work — but the VM covers basic patterns (transfers, mints, votes, staking), not the full Clarity runtime. Template coverage stops at 12. Error diagnostics are syntactic, not semantic. A DeGrant would fund deeper simulation, richer diagnostics, and more templates — turning a working prototype into a complete on-ramp for new Stacks devs.
+
 ### ▶ Live now — write, simulate, and deploy at **[clarityforge-sigma.vercel.app](https://clarityforge-sigma.vercel.app)**
 
 **[ Live demo ↗ ](https://clarityforge-sigma.vercel.app)** · **[ Open the editor ↗ ](https://clarityforge-sigma.vercel.app/demo)** · **[ Browse templates ↗ ](https://clarityforge-sigma.vercel.app/templates)** · **[ Dashboard ↗ ](https://clarityforge-sigma.vercel.app/dashboard)** · **[ See it in one command ↓ ](#-see-it-in-one-command)** · **[ Honesty table ↓ ](#whats-real-vs-pending--the-honesty-table)** · **[ Architecture ↓ ](#architecture)**
