@@ -214,16 +214,20 @@ function DemoContent() {
     if (!model) return;
     const monaco = (window as any).monaco;
     if (!monaco) return;
-    const markers: editor.IMarkerData[] = diagnostics.map((d) => ({
-      severity: d.severity === "error" ? monaco.MarkerSeverity.Error
-        : d.severity === "warning" ? monaco.MarkerSeverity.Warning
-        : monaco.MarkerSeverity.Info,
-      message: d.message,
-      startLineNumber: d.line,
-      startColumn: d.col,
-      endLineNumber: d.line,
-      endColumn: d.col + 20,
-    }));
+    const markers: editor.IMarkerData[] = diagnostics.map((d) => {
+      const lineContent = model.getLineContent(d.line) || "";
+      const endCol = lineContent.length > 0 ? lineContent.length + 1 : d.col + 1;
+      return {
+        severity: d.severity === "error" ? monaco.MarkerSeverity.Error
+          : d.severity === "warning" ? monaco.MarkerSeverity.Warning
+          : monaco.MarkerSeverity.Info,
+        message: d.message,
+        startLineNumber: d.line,
+        startColumn: Math.max(1, d.col),
+        endLineNumber: d.line,
+        endColumn: Math.max(d.col + 1, endCol),
+      };
+    });
     monaco.editor.setModelMarkers(model, "clarity", markers);
   }, []);
 

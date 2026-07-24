@@ -18,17 +18,21 @@
 |---|:---:|:---:|:---:|:---:|
 | **Runs in browser** | ✅ | ✅ | ❌ (local CLI) | ❌ (desktop) |
 | **Monaco code editor** | ✅ | ❌ (terminal only) | ❌ | ✅ |
+| **Real-time error squiggles** | ✅ | ❌ | ✅ | ✅ |
+| **File explorer sidebar** | ✅ | ❌ | ❌ | ✅ |
 | **One-click templates** | ✅ 12 | ❌ | ❌ | ❌ |
 | **Visual state inspector** | ✅ | ❌ | ❌ | ❌ |
 | **Interact panel (call functions)** | ✅ | ❌ | ✅ (CLI) | ❌ |
 | **Wallet deploy to testnet** | ✅ | ❌ | ❌ | ❌ |
 | **Shareable snippet links** | ✅ | ❌ | ❌ | ❌ |
+| **Undo/redo** | ✅ | ❌ | ✅ | ✅ |
+| **Built-in Clarity reference** | ✅ | ❌ | ❌ | ❌ |
 | **Zero install / signup** | ✅ | ✅ | ❌ | ❌ |
 | **Clarinet SDK / real VM** | ❌ (simulator) | ✅ | ✅ | ✅ |
 
 ClarityForge is not a replacement for Clarinet or the playground — it's the missing visual layer. Write, analyze, simulate, and deploy in a browser tab. When you're ready for production, graduate to Clarinet.
 
-**This is not finished.** The editor, VM, templates, and deploy pipeline all work — but the VM covers basic patterns (transfers, mints, votes, staking), not the full Clarity runtime. Template coverage stops at 12. Error diagnostics are syntactic, not semantic. A DeGrant would fund deeper simulation, richer diagnostics, and more templates — turning a working prototype into a complete on-ramp for new Stacks devs.
+**This is not finished.** The editor, VM, templates, and deploy pipeline all work — but the VM covers basic patterns (transfers, mints, votes, staking), not the full Clarity runtime. Template coverage stops at 12. Error diagnostics catch common syntax mistakes but are syntactic, not a full Clarity type-checker. A DeGrant would fund deeper simulation, richer diagnostics, and more templates — turning a working prototype into a complete on-ramp for new Stacks devs.
 
 ### ▶ Live now — write, simulate, and deploy at **[clarityforge-sigma.vercel.app](https://clarityforge-sigma.vercel.app)**
 
@@ -165,13 +169,25 @@ Our approach: **pure TypeScript, zero upstream dependencies on the Clarity VM.**
 
 ## How ClarityForge works
 
-Six capabilities, each documented with the mechanism behind it. All are live at [clarityforge-sigma.vercel.app](https://clarityforge-sigma.vercel.app).
+Nine capabilities, each documented with the mechanism behind it. All are live at [clarityforge-sigma.vercel.app](https://clarityforge-sigma.vercel.app).
 
 ### 1 · The editor — Monaco with real Clarity syntax
 
-The editor is Monaco — the same editor that powers VS Code. ClarityForge registers a custom language definition with **50+ keywords** and proper token coloring for comments, strings, integers, uints, principals, and s-expressions. **35 autocomplete snippets** cover every `define-*` form, all `ft-*`/`nft-*` builtins, map/var operations, control flow, and contract calls. The language registers in `beforeMount` — no separate extension, no marketplace dependency. It ships with the app.
+The editor is Monaco — the same editor that powers VS Code. ClarityForge registers a custom language definition with **50+ keywords** and proper token coloring for comments, strings, integers, uints, principals, and s-expressions. **35 autocomplete snippets** cover every `define-*` form, all `ft-*`/`nft-*` builtins, map/var operations, control flow, and contract calls. **Undo/redo** buttons in the toolbar. **Ctrl+S** and **Ctrl+Enter** to run.
 
-### 2 · Static analysis — tokenizer + analyzer
+### 2 · File explorer sidebar
+
+A left sidebar lists all open `.clar` files. Click to switch, double-click to rename inline, **+ to create a new file with an inline input** (no browser prompt dialogs). Files persist across sessions via localStorage. The explorer replaces old-style top tabs — more space for code.
+
+### 3 · Real-time error squiggles
+
+As you type, the analyzer runs in the background (400ms debounce) and pushes diagnostics to Monaco. **Red squiggly underlines appear immediately** — no need to click Run. Catches: missing token names, missing initial supply, undefined functions, empty `begin` bodies, `let` without bindings, unmatched quotes, unbalanced parentheses, and mistyped keywords (e.g. `define-funible-token` → "did you mean define-fungible-token?").
+
+### 4 · Built-in Clarity reference
+
+Click **?** in the toolbar to open a reference panel with all Clarity keywords organized by category: tokens, functions, storage, and types. No need to leave the editor to look up syntax.
+
+### 5 · Static analysis — tokenizer + analyzer
 
 ```
 POST /api/analyze
@@ -188,7 +204,7 @@ POST /api/analyze
 
 The pipeline: tokenize (50+ keywords → typed tokens) → validate (balanced parens, non-empty) → extract (fungible-tokens, NFTs, functions, data-vars, maps, constants, traits) → extract function parameters from each signature → compute stats → estimate cost. All in TypeScript. No `eval`, no shell, no file I/O.
 
-### 3 · Browser VM — stateful, like Remix VM
+### 6 · Browser VM — stateful, like Remix VM
 
 ```
 ┌──────────────────────────────────┐
@@ -208,7 +224,7 @@ The pipeline: tokenize (50+ keywords → typed tokens) → validate (balanced pa
 
 The VM is a stateful in-browser simulator. It initializes from your contract's definitions (allocates tokens to the deployer, seeds data-vars, creates map structures). Each call reads from and writes to that state, and the state persists across calls — transfer tokens, then query the balance, and the balance dropped. Every execution produces a **trace** — a step-by-step log of reads, writes, transfers, events, and the return value — plus a cost estimate in µSTX. It's not the real Clarity runtime, and the UI says so.
 
-### 4 · Three environments
+### 7 · Three environments
 
 | Environment | What it does | When to use |
 |------------|-------------|------------|
@@ -218,7 +234,7 @@ The VM is a stateful in-browser simulator. It initializes from your contract's d
 
 The environment selector sits in the editor toolbar — a three-button toggle, like Remix's environment dropdown. If no Clarinet binary is present on the server, Clarinet mode falls back to the static analyzer and labels the result `"vm": "static"` — never a false claim.
 
-### 5 · Wallet deployment
+### 8 · Wallet deployment
 
 Connect your Leather or Xverse wallet via the native SIP-030 `window.StacksProvider` API — **zero npm dependencies** for wallet functionality. Click Deploy, and your contract goes live on Stacks **testnet** via `stx_deployContract`. You get back a transaction ID with clickable Hiro explorer links:
 
@@ -235,7 +251,7 @@ TxID: 0x…
 
 Every network reference is hardcoded to **testnet** — no mainnet path exists in the code. Without a wallet, Deploy runs a simulation (clearly labeled) that generates a realistic tx hash + contract ID for prototyping.
 
-### 6 · Template library
+### 9 · Template library & shareable snippets
 
 Twelve production-ready Clarity contracts, one click away — every one deploys cleanly on testnet:
 
@@ -255,6 +271,8 @@ Twelve production-ready Clarity contracts, one click away — every one deploys 
 | **Streaming Payments** | Payments | Real-time money streaming — pay per block, cancel anytime |
 
 Each template opens in the editor with one click. Edit, analyze, simulate, deploy. All follow Stacks standards — SIP-010, SIP-009.
+
+**Shareable snippets.** Click **↗ Share** in the toolbar to copy a URL with your code encoded in the hash. Send it to anyone — when they open the link, the exact contract loads in their editor. No accounts, no backend, no database. The code lives in the URL. Perfect for code review, teaching, or showing stewards exactly what you built.
 
 ---
 
@@ -381,6 +399,11 @@ We want to be honest about what this project does and doesn't do:
 | Feature | Status | Note |
 |---------|:------:|------|
 | Monaco editor with Clarity syntax highlighting | ✅ Real | Custom language, 50+ keywords, 35 snippets |
+| File explorer sidebar | ✅ Real | Left sidebar: inline create, rename, delete files |
+| Real-time error squiggles | ✅ Real | 400ms debounced analysis → Monaco markers as you type |
+| Built-in Clarity reference panel | ✅ Real | ? button: tokens, functions, storage, types |
+| Undo / redo | ✅ Real | Toolbar buttons + Ctrl+Z / Ctrl+Shift+Z |
+| Shareable snippet links | ✅ Real | ↗ copies URL with base64-encoded code in hash |
 | Tokenizer (50+ keywords) | ✅ Real | `tokenizer.ts` — comments, strings, s-expressions, uints, principals |
 | Static analyzer | ✅ Real | Balanced parens, definition + parameter extraction, diagnostics, cost |
 | Browser VM simulator | ✅ Real | 5 test accounts, transfer, mint, propose/vote, staking, multi-sig |
@@ -489,6 +512,7 @@ src/
 │   ├── templates.ts              11 production-ready contract templates
 │   └── monaco-language.ts        Monaco language definition + 35 snippets
 ├── components/
+│    ├── FileExplorer.tsx           File explorer sidebar (inline create/rename/delete)
 │    ├── Nav.tsx                   Fixed nav + wallet connect + theme toggle
 │    ├── Footer.tsx                Minimal footer
 │    ├── StateVisualizer.tsx       Contract structure viewer + SVG call graph
