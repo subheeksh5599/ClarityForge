@@ -446,6 +446,108 @@ export function analyze(source: string): AnalysisResult {
     diagnostics.push({ line: 1, col: 1, message: "Contract is empty", severity: "warning" });
   }
 
+  // ── Semantic checks: common Clarity syntax errors ──
+
+  // Track expected structure after define-* keywords
+  for (let i = 0; i < nonWhitespace.length; i++) {
+    const t = nonWhitespace[i];
+    const next = nonWhitespace[i + 1];
+    const next2 = nonWhitespace[i + 2];
+    const next3 = nonWhitespace[i + 3];
+
+    if (t.type === "keyword") {
+      // define-fungible-token <name> <uint-supply>
+      if (t.value === "define-fungible-token") {
+        if (!next || next.type === "rparen") {
+          diagnostics.push({ line: t.line, col: t.col, message: "define-fungible-token requires a token name and initial supply", severity: "error" });
+        } else if (next.type !== "identifier") {
+          diagnostics.push({ line: next?.line ?? t.line, col: next?.col ?? t.col, message: `Expected token name, got '${next?.value ?? ")"}'`, severity: "error" });
+        } else if (!next2 || next2.type !== "uint") {
+          diagnostics.push({ line: next.line, col: next.col, message: `Token '${next.value}' is missing initial supply (e.g. u1000000)`, severity: "error" });
+        }
+        continue;
+      }
+
+      // define-non-fungible-token <name> <type>
+      if (t.value === "define-non-fungible-token") {
+        if (!next || next.type === "rparen") {
+          diagnostics.push({ line: t.line, col: t.col, message: "define-non-fungible-token requires a name and asset type", severity: "error" });
+        } else if (next.type !== "identifier") {
+          diagnostics.push({ line: next?.line ?? t.line, col: next?.col ?? t.col, message: `Expected NFT name, got '${next?.value ?? ")"}'`, severity: "error" });
+        }
+        continue;
+      }
+
+      // define-public / define-read-only / define-private (fn-name (params...) body)
+      if (t.value === "define-public" || t.value === "define-read-only" || t.value === "define-private") {
+        if (!next || next.type !== "lparen") {
+          diagnostics.push({ line: t.line, col: t.col, message: `${t.value} must be followed by (function-name ...)`, severity: "error" });
+        } else if (!next2 || next2.type !== "identifier") {
+          diagnostics.push({ line: next?.line ?? t.line, col: (next?.col ?? t.col) + 1, message: `${t.value} requires a function name`, severity: "error" });
+        }
+        continue;
+      }
+
+      // define-data-var <name> <type> <default>
+      if (t.value === "define-data-var") {
+        if (!next || next.type === "rparen") {
+          diagnostics.push({ line: t.line, col: t.col, message: "define-data-var requires a name, type, and default value", severity: "error" });
+        } else if (next.type !== "identifier") {
+          diagnostics.push({ line: next?.line ?? t.line, col: next?.col ?? t.col, message: `Expected variable name, got '${next?.value ?? ")"}'`, severity: "error" });
+        } else if (!next2 || (next2.type !== "type" && next2.type !== "identifier")) {
+          diagnostics.push({ line: next.line, col: next.col, message: `Data var '${next.value}' is missing a type (e.g. uint, principal)`, severity: "error" });
+        }
+        continue;
+      }
+
+      // define-map <name> <key-type> <value-type>
+      if (t.value === "define-map") {
+        if (!next || next.type === "rparen") {
+          diagnostics.push({ line: t.line, col: t.col, message: "define-map requires a name, key type, and value type", severity: "error" });
+        } else if (next.type !== "identifier") {
+          diagnostics.push({ line: next?.line ?? t.line, col: next?.col ?? t.col, message: `Expected map name, got '${next?.value ?? ")"}'`, severity: "error" });
+        }
+        continue;
+      }
+
+      // let must have bindings: (let ((name val) ...) body)
+      if (t.value === "let") {
+        if (!next || next.type !== "lparen") {
+          diagnostics.push({ line: t.line, col: t.col, message: "let requires a binding list: (let ((name value) ...) body)", severity: "error" });
+        }
+        continue;
+      }
+
+      // begin requires at least one expression
+      if (t.value === "begin") {
+        if (!next || next.type === "rparen") {
+          diagnostics.push({ line: t.line, col: t.col, message: "begin requires at least one expression", severity: "warning" });
+        }
+        continue;
+      }
+    }
+
+    // Catch unknown/typo tokens that look like mistyped keywords
+    if (t.type === "identifier" && t.value.startsWith("define-")) {
+      diagnostics.push({
+        line: t.line, col: t.col,
+        message: `Unknown keyword '${t.value}' — did you mean 'define-public', 'define-read-only', 'define-fungible-token', etc?`,
+        severity: "error",
+      });
+    }
+  }
+
+  // Check for unmatched double-quotes (string that opens but never closes)
+  const quoteCount = (source.match(/(?<!\\)"/g) || []).length;
+  if (quoteCount % 2 !== 0) {
+    diagnostics.push({
+      line: source.lastIndexOf('"') >= 0 ? source.substring(0, source.lastIndexOf('"')).split("\n").length : 1,
+      col: 1,
+      message: "Unmatched double-quote — missing closing \"",
+      severity: "error",
+    });
+  }
+
   // 6. Compute stats
   const totalLines = source.split("\n").length;
   const fnDefs = definitions.filter((d) =>

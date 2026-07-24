@@ -125,6 +125,7 @@ function DemoContent() {
   const vmStateRef = useRef<VmState>(createVmState());
   const [, forceUpdate] = useState(0);
   const updateVmState = (s: VmState) => { vmStateRef.current = s; forceUpdate(v => v + 1); };
+
   const [envMode, setEnvMode] = useState<"vm" | "clarinet" | "deploy">("vm");
   const [vmResult, setVmResult] = useState<VmResult | null>(null);
 
@@ -235,6 +236,20 @@ function DemoContent() {
     if (!monaco) return;
     monaco.editor.setModelMarkers(model, "clarity", []);
   }, []);
+
+  // ── Real-time error squiggles (debounced analysis on every keystroke) ──
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!editorRef.current) return;
+      const result = analyze(code);
+      if (result.diagnostics.length > 0) {
+        setEditorMarkers(result.diagnostics);
+      } else {
+        clearEditorMarkers();
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [code]);
 
   // ── Run ──
   const handleRun = async () => {
@@ -473,15 +488,6 @@ function DemoContent() {
 
         <span className="flex-1" />
 
-        <button
-          onClick={wallet.connected ? wallet.disconnectWallet : wallet.connectWallet}
-          disabled={wallet.connecting}
-          className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium border border-line transition-colors ${
-            wallet.connected ? "border-text/20 text-text hover:border-text/40" : "text-muted hover:text-text hover:border-text/20"
-          }`}
-          title={wallet.connected ? `Connected: ${wallet.address?.slice(0, 8)}…` : "Connect wallet"}>
-          {wallet.connecting ? "…" : wallet.connected ? "◉" : "○"}
-        </button>
         <button onClick={handleDownload}
           className="px-2 py-1 text-[11px] text-muted hover:text-text font-mono transition-colors"
           title="Download .clar file">↓</button>
