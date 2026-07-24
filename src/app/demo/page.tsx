@@ -6,8 +6,7 @@ import dynamic from "next/dynamic";
 import type { editor } from "monaco-editor";
 import Nav from "../../components/Nav";
 import StateVisualizer from "../../components/StateVisualizer";
-import AccountPanel from "../../components/AccountPanel";
-import VmTrace from "../../components/VmTrace";
+import FileExplorer from "../../components/FileExplorer";
 import { useWallet, deployContract } from "../../components/WalletProvider";
 import { useTheme } from "../../components/ThemeProvider";
 import { TEMPLATES, getTemplate, Template } from "../../lib/clarity/templates";
@@ -15,7 +14,7 @@ import { getExecutableFunctions, getDefaultParams, executeFunction, ExecutionRes
 import { analyze, AnalysisResult } from "../../lib/clarity/analyzer";
 import {
   createVmState, initStateFromContract, executeInVm,
-  type VmState, type VmResult, type SimAccount
+  type VmState, type VmResult
 } from "../../lib/clarity/vm";
 import { CLARITY_LANGUAGE, CLARITY_COMPLETIONS } from "../../lib/clarity/monaco-language";
 import { SkeletonEditor } from "../../components/ui/skeleton";
@@ -32,7 +31,6 @@ function DemoContent() {
   const searchParams = useSearchParams();
   const initialSlug = searchParams.get("template") ?? "token";
   const initialTemplate = getTemplate(initialSlug) ?? (() => {
-    // Check custom templates in localStorage
     try {
       const raw = localStorage.getItem("clarityforge-custom-templates");
       if (raw) {
@@ -62,10 +60,9 @@ function DemoContent() {
   const [fnParams, setFnParams] = useState<string[]>([]);
   const [execResult, setExecResult] = useState<ExecutionResult | null>(null);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [splitRatio, setSplitRatio] = useState(60);
-  const [renamingFile, setRenamingFile] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+  const [splitRatio, setSplitRatio] = useState(65);
   const [unsavedFiles, setUnsavedFiles] = useState<Set<string>>(new Set());
+  const [showHelp, setShowHelp] = useState(false);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const dragRef = { current: false };
   const wallet = useWallet();
@@ -77,18 +74,17 @@ function DemoContent() {
   // ── Share snippet ──
   const [shareCopied, setShareCopied] = useState(false);
 
-  // Load code from URL hash on mount
   useEffect(() => {
     try {
-      const hash = window.location.hash?.slice(1); // remove #
-      if (!hash || hash.startsWith("template=")) return; // new format only
+      const hash = window.location.hash?.slice(1);
+      if (!hash || hash.startsWith("template=")) return;
       const decoded = decodeURIComponent(atob(hash));
       if (decoded && decoded.trim().length > 0 && decoded !== code) {
         const newFile: FileTab = { id: nextFileId(), name: "shared.clar", code: decoded };
         setFiles((prev) => [...prev, newFile]);
         setActiveFileId(newFile.id);
       }
-    } catch { /* invalid hash — ignore */ }
+    } catch { /* invalid hash */ }
   }, []);
 
   const handleShare = () => {
@@ -99,14 +95,11 @@ function DemoContent() {
         setShareCopied(true);
         setTimeout(() => setShareCopied(false), 2000);
       }).catch(() => {
-        // Fallback: update URL hash so user can copy from address bar
         window.location.hash = encoded;
         setShareCopied(true);
         setTimeout(() => setShareCopied(false), 2000);
       });
-    } catch {
-      // Code too large or invalid chars
-    }
+    } catch { /* ignore */ }
   };
 
   const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
@@ -124,90 +117,21 @@ function DemoContent() {
     editor.focus();
   };
 
-  // Render output with clickable links and copy buttons for deploy artifacts
-  const renderOutput = (text: string | null) => {
-    if (!text) return null;
+  // ── Undo / Redo ──
+  const handleUndo = () => editorRef.current?.trigger("keyboard", "undo", null);
+  const handleRedo = () => editorRef.current?.trigger("keyboard", "redo", null);
 
-    const lines = text.split("\n");
-    const hexRegex = /(0x[a-fA-F0-9]{8,})/g;
-    const contractRegex = /(ST[1-3A-HJ-NP-Za-km-z]{38,40}\.[\w-]+)/g;
-
-    return (
-      <div className="font-mono text-xs text-text/80 leading-relaxed whitespace-pre-wrap">
-        {lines.map((line, li) => {
-          // Check for deploy artifacts — add copy button
-          const hexMatch = line.match(hexRegex);
-          const contractMatch = line.match(contractRegex);
-
-          // Render URLs within the line
-          const urlRegex = /(https?:\/\/[^\s]+)/g;
-          const urlParts = line.split(urlRegex);
-          const urlMatches = line.match(urlRegex) || [];
-          let uIdx = 0;
-
-          return (
-            <span key={li}>
-              {urlParts.map((part, pi) => {
-                if (pi % 2 === 1) {
-                  const url = urlMatches[uIdx++];
-                  return (
-                    <a key={pi} href={url} target="_blank" rel="noopener noreferrer"
-                      className="text-text underline hover:text-text/70"
-                      onClick={(e) => e.stopPropagation()}>
-                      {url}
-                    </a>
-                  );
-                }
-                return part;
-              })}
-              {hexMatch && hexMatch.map((h, hi) => (
-                <CopyButton key={`hex-${li}-${hi}`} text={h} label="tx hash" />
-              ))}
-              {contractMatch && contractMatch.map((c, ci) => (
-                <CopyButton key={`ctr-${li}-${ci}`} text={c} label="contract ID" />
-              ))}
-              {"\n"}
-            </span>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // ── VM state (Remix-style) ──
+  // ── VM state ──
   const vmStateRef = useRef<VmState>(createVmState());
-  const [, forceUpdate] = useState(0); // trigger VM re-renders
+  const [, forceUpdate] = useState(0);
   const updateVmState = (s: VmState) => { vmStateRef.current = s; forceUpdate(v => v + 1); };
-  const [selectedAccount, setSelectedAccount] = useState(vmStateRef.current.accounts[0].address);
   const [envMode, setEnvMode] = useState<"vm" | "clarinet" | "deploy">("vm");
   const [vmResult, setVmResult] = useState<VmResult | null>(null);
-  const [accountsLoading, setAccountsLoading] = useState(false);
-  const accounts = vmStateRef.current.accounts;
-
-  const refreshAccounts = async () => {
-    setAccountsLoading(true);
-    try {
-      const res = await fetch("/api/accounts");
-      const data = await res.json();
-      if (data.accounts?.length) {
-        const fresh = createVmState();
-        fresh.accounts = data.accounts.map((a: { address: string; label: string }, i: number) => ({
-          address: a.address,
-          balance: 100_000_000,
-          label: a.label || `Account ${i + 1}`,
-        }));
-        vmStateRef.current.accounts = fresh.accounts;
-        setSelectedAccount(fresh.accounts[0].address);
-      }
-    } catch { /* ignore */ }
-    setAccountsLoading(false);
-  };
 
   // ── localStorage persistence ──
   const STORAGE_KEY = "clarityforge-files";
   const UI_STATE_KEY = "clarityforge-ui";
 
-  // Load saved files on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -217,10 +141,9 @@ function DemoContent() {
         setFiles(parsed);
         setActiveFileId(parsed[0].id);
       }
-    } catch { /* ignore corrupt data */ }
+    } catch { /* ignore */ }
   }, []);
 
-  // Restore UI state on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem(UI_STATE_KEY);
@@ -231,31 +154,35 @@ function DemoContent() {
     } catch { /* ignore */ }
   }, []);
 
-  // Save files whenever they change
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(files));
-    } catch { /* quota exceeded — silently ignore */ }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(files)); } catch { /* ignore */ }
   }, [files]);
 
-  // Save UI state whenever it changes
   useEffect(() => {
-    try {
-      localStorage.setItem(UI_STATE_KEY, JSON.stringify({ viewMode, rightPanelOpen }));
-    } catch { /* ignore */ }
+    try { localStorage.setItem(UI_STATE_KEY, JSON.stringify({ viewMode, rightPanelOpen })); } catch { /* ignore */ }
   }, [viewMode, rightPanelOpen]);
 
-  // Mark file as unsaved when code changes from original
-  const markUnsaved = (id: string, code: string, original: string) => {
-    setUnsavedFiles((prev) => {
-      const next = new Set(prev);
-      if (code !== original) next.add(id); else next.delete(id);
-      return next;
-    });
+  // ── File operations ──
+  const handleAddFile = (name: string) => {
+    const f: FileTab = { id: nextFileId(), name, code: ";; New Clarity contract\n" };
+    setFiles((prev) => [...prev, f]);
+    setActiveFileId(f.id);
+  };
+
+  const handleRenameFile = (id: string, name: string) => {
+    setFiles((prev) => prev.map((f) => f.id === id ? { ...f, name } : f));
+  };
+
+  const handleDeleteFile = (id: string) => {
+    if (files.length <= 1) return;
+    const remaining = files.filter((f) => f.id !== id);
+    setFiles(remaining);
+    if (activeFileId === id) {
+      setActiveFileId(remaining[0]?.id ?? "");
+    }
   };
 
   const switchTemplate = (t: Template) => {
-    // Deduplicate filename
     let baseName = `${t.slug}.clar`;
     let name = baseName;
     let counter = 1;
@@ -269,48 +196,6 @@ function DemoContent() {
     setViewMode("visual");
   };
 
-  const closeFile = (id: string) => {
-    if (files.length <= 1) return;
-    setFiles((prev) => {
-      const next = prev.filter((f) => f.id !== id);
-      return next;
-    });
-    // Set active ID outside the updater to avoid nested state calls
-    if (activeFileId === id) {
-      const remaining = files.filter((f) => f.id !== id);
-      setActiveFileId(remaining[0]?.id ?? "");
-    }
-  };
-
-  const addNewFile = () => {
-    const name = window.prompt("File name:", "untitled.clar");
-    if (!name) return;
-    const resolved = name.endsWith(".clar") ? name : `${name}.clar`;
-    // Deduplicate
-    let finalName = resolved;
-    let counter = 1;
-    while (files.some((f) => f.name === finalName)) {
-      const base = resolved.replace(/\.clar$/, "");
-      finalName = `${base}-${counter}.clar`;
-      counter++;
-    }
-    const f: FileTab = { id: nextFileId(), name: finalName, code: ";; New Clarity contract\n" };
-    setFiles((prev) => [...prev, f]);
-    setActiveFileId(f.id);
-  };
-
-  const startRename = (f: FileTab) => {
-    setRenamingFile(f.id);
-    setRenameValue(f.name);
-  };
-
-  const commitRename = () => {
-    if (!renamingFile || !renameValue.trim()) { setRenamingFile(null); return; }
-    const name = renameValue.endsWith(".clar") ? renameValue : `${renameValue}.clar`;
-    setFiles((prev) => prev.map((f) => f.id === renamingFile ? { ...f, name } : f));
-    setRenamingFile(null);
-  };
-
   const handleDownload = () => {
     const blob = new Blob([code], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -319,7 +204,6 @@ function DemoContent() {
     a.download = activeFile.name;
     a.click();
     URL.revokeObjectURL(url);
-    markUnsaved(activeFile.id, code, code);
   };
 
   const setEditorMarkers = useCallback((diagnostics: { line: number; col: number; message: string; severity: string }[]) => {
@@ -352,22 +236,28 @@ function DemoContent() {
     monaco.editor.setModelMarkers(model, "clarity", []);
   }, []);
 
+  // ── Run ──
   const handleRun = async () => {
     setRunning(true); setOutput(null); setTxHash(null); setVmResult(null);
 
-    // ── VM Mode: execute in browser simulator ──
     if (envMode === "vm") {
       try {
         const analysisResult = analyze(code);
         setAnalysisResult(analysisResult as unknown as Record<string, unknown>);
 
-        // Init state from contract definitions
         const state = initStateFromContract(
           JSON.parse(JSON.stringify(vmStateRef.current)),
           analysisResult.definitions
         );
-        state.caller = selectedAccount;
+        state.caller = "STAM1Q5N8TWU6BP3HE0AEBKHJWZGDDMCF6SZNR348"; // default account
         updateVmState(state);
+
+        // Push error squiggles
+        if (analysisResult.diagnostics?.length) {
+          setEditorMarkers(analysisResult.diagnostics);
+        } else {
+          clearEditorMarkers();
+        }
 
         if (!analysisResult.valid) {
           const l: string[] = ["✗ Analysis failed"];
@@ -434,7 +324,6 @@ function DemoContent() {
       const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
       if (!res.ok) { const err = await res.json().catch(() => ({ error: "Request failed" })); setOutput(`✗ ${err.error || `HTTP ${res.status}`}`); setRunning(false); return; }
       const data = await res.json(); setAnalysisResult(data);
-      // Push diagnostics to editor markers for red squiggly underlines
       if (data.diagnostics?.length) {
         setEditorMarkers(data.diagnostics);
       } else {
@@ -455,7 +344,7 @@ function DemoContent() {
     setRunning(false);
   };
 
-  // Keyboard shortcuts (uses ref to avoid stale closures)
+  // Keyboard shortcuts
   const handleRunRef = useRef(handleRun);
   handleRunRef.current = handleRun;
 
@@ -471,7 +360,6 @@ function DemoContent() {
   const handleDeploy = async () => {
     setDeploying(true); setTxHash(null);
 
-    // If wallet is connected, do real deployment
     if (wallet.connected) {
       try {
         const contractName = activeFile.name.replace(".clar", "").replace(/[^a-zA-Z0-9_-]/g, "-");
@@ -486,7 +374,7 @@ function DemoContent() {
           const contractId = `${deployerAddr}.${contractName}`;
           const txLink = `https://explorer.hiro.so/txid/${result.txid}?chain=testnet`;
           const contractLink = `https://explorer.hiro.so/address/${contractId}?chain=testnet`;
-          
+
           setTxHash(result.txid);
           setOutput(
             `✓ Contract deployed to testnet!\n\n` +
@@ -508,7 +396,6 @@ function DemoContent() {
       return;
     }
 
-    // Fallback: simulated deploy
     try {
       const res = await fetch("/api/deploy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
       const data = await res.json();
@@ -539,238 +426,256 @@ function DemoContent() {
     <div className="h-svh flex flex-col bg-surface pt-16">
       <Nav />
 
-      {/* Toolbar: file tabs + actions merged */}
-      <div className="flex items-center border-b border-line bg-bg shrink-0">
-        <div className="flex items-center flex-1 overflow-x-auto min-w-0">
-          {files.map((f) => (
+      {/* Toolbar */}
+      <div className="flex items-center gap-1.5 px-3 h-9 border-b border-line bg-bg shrink-0">
+        {/* Undo / Redo */}
+        <button onClick={handleUndo} className="px-1.5 py-1 text-[11px] text-muted/50 hover:text-text font-mono transition-colors" title="Undo (Ctrl+Z)">↩</button>
+        <button onClick={handleRedo} className="px-1.5 py-1 text-[11px] text-muted/50 hover:text-text font-mono transition-colors" title="Redo (Ctrl+Shift+Z)">↪</button>
+
+        <span className="w-px h-4 bg-line mx-1" />
+
+        {/* Environment selector */}
+        <div className="flex items-center border border-line rounded-sm">
+          {(["vm", "clarinet", "deploy"] as const).map((m) => (
             <button
-              key={f.id}
-              onClick={() => { if (renamingFile !== f.id) setActiveFileId(f.id); }}
-              onDoubleClick={() => startRename(f)}
-              className={`group flex items-center gap-1.5 px-3 py-2 text-[11px] font-mono border-r border-line transition-colors shrink-0 ${
-                f.id === activeFileId ? "text-text bg-surface" : "text-muted/60 hover:text-text hover:bg-text/[0.02]"
-              }`}
+              key={m}
+              onClick={() => setEnvMode(m)}
+              className={`text-[10px] font-mono px-2 py-1 transition-colors ${
+                envMode === m
+                  ? "bg-text/10 text-text"
+                  : "text-muted/60 hover:text-text hover:bg-text/[0.03]"
+              } ${m !== "vm" ? "border-l border-line" : ""}`}
             >
-              {renamingFile === f.id ? (
-                <input
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onBlur={commitRename}
-                  onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingFile(null); }}
-                  className="bg-surface text-text text-[11px] font-mono outline-none border border-text/20 px-1 py-0 w-32"
-                  autoFocus
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <span className="flex items-center gap-1">
-                  {unsavedFiles.has(f.id) && <span className="w-1.5 h-1.5 rounded-full bg-text/60" />}
-                  {f.name}
-                </span>
-              )}
-              {files.length > 1 && renamingFile !== f.id && (
-                <span onClick={(e) => { e.stopPropagation(); closeFile(f.id); }}
-                  className="text-muted hover:text-text ml-0.5">×</span>
-              )}
+              {m === "vm" ? "VM" : m === "clarinet" ? "Clarinet" : "Deploy"}
             </button>
           ))}
-          <button onClick={addNewFile} className="px-2.5 py-2 text-[11px] text-muted hover:text-text font-mono shrink-0">+</button>
         </div>
 
-        <div className="flex items-center gap-1.5 px-3 border-l border-line shrink-0">
-          {/* Environment selector */}
-          <div className="flex items-center border border-line rounded-sm mr-1">
-            {(["vm", "clarinet", "deploy"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setEnvMode(m)}
-                className={`text-[10px] font-mono px-2 py-1 transition-colors ${
-                  envMode === m
-                    ? "bg-text/10 text-text"
-                    : "text-muted/60 hover:text-text hover:bg-text/[0.03]"
-                } ${m !== "vm" ? "border-l border-line" : ""}`}
-              >
-                {m === "vm" ? "VM" : m === "clarinet" ? "Clarinet" : "Deploy"}
-              </button>
-            ))}
-          </div>
-          <button onClick={handleRun} disabled={running}
-            className={`flex items-center gap-1 px-3 py-1 text-[11px] font-medium transition-colors ${
-              running
-                ? "text-muted/40 cursor-not-allowed"
-                : "text-bg bg-text hover:bg-text/85 active:bg-text/70"
-            }`}>
-            ▶ {running ? "…" : envMode === "vm" ? "Run" : "Check"}
-          </button>
-          <button onClick={handleDeploy} disabled={deploying}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium border border-line transition-colors ${
-              deploying
-                ? "text-muted/40 cursor-not-allowed border-muted/20"
-                : "text-text hover:border-text/30 hover:bg-text/[0.03] active:bg-text/[0.05]"
-            }`}>
-            ↑ {deploying ? "…" : "Deploy"}
-          </button>
-          <button onClick={handleShare}
-            className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium border border-line transition-colors ${
-              shareCopied
-                ? "text-green-400 border-green-500/30"
-                : "text-muted hover:text-text hover:border-text/20 hover:bg-text/[0.03]"
-            }`}
-            title="Copy shareable link">
-            {shareCopied ? "✓ Copied" : "↗ Share"}
-          </button>
-          <button
-            onClick={wallet.connected ? wallet.disconnectWallet : wallet.connectWallet}
-            disabled={wallet.connecting}
-            className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium border border-line transition-colors ${
-              wallet.connected
-                ? "border-text/20 text-text hover:border-text/40 hover:bg-text/[0.03]"
-                : "text-muted hover:text-text hover:border-text/20 hover:bg-text/[0.03]"
-            }`}
-            title={wallet.connected ? `Connected: ${wallet.address?.slice(0, 8)}…` : "Connect wallet for real deployment"}
-          >
-            {wallet.connecting ? "…" : wallet.connected ? "◉" : "○"}
-          </button>
-          <button onClick={handleDownload}
-            className="px-2 py-1 text-[11px] text-muted hover:text-text font-mono transition-colors"
-            title="Download .clar file">
-            ↓
-          </button>
-          <button onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            className="px-1.5 py-1 text-[11px] text-muted/50 hover:text-text font-mono transition-colors"
-            title={rightPanelOpen ? "Close panel" : "Open panel"}>
-            {rightPanelOpen ? "◢" : "◰"}
-          </button>
-        </div>
+        <button onClick={handleRun} disabled={running}
+          className={`flex items-center gap-1 px-3 py-1 text-[11px] font-medium transition-colors ${
+            running ? "text-muted/40 cursor-not-allowed" : "text-bg bg-text hover:bg-text/85 active:bg-text/70"
+          }`}>
+          ▶ {running ? "…" : envMode === "vm" ? "Run" : "Check"}
+        </button>
+        <button onClick={handleDeploy} disabled={deploying}
+          className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium border border-line transition-colors ${
+            deploying ? "text-muted/40 cursor-not-allowed border-muted/20" : "text-text hover:border-text/30 hover:bg-text/[0.03]"
+          }`}>
+          ↑ {deploying ? "…" : "Deploy"}
+        </button>
+        <button onClick={handleShare}
+          className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium border border-line transition-colors ${
+            shareCopied ? "text-green-400 border-green-500/30" : "text-muted hover:text-text hover:border-text/20 hover:bg-text/[0.03]"
+          }`}
+          title="Copy shareable link">
+          {shareCopied ? "✓" : "↗"}
+        </button>
+
+        <span className="flex-1" />
+
+        <button
+          onClick={wallet.connected ? wallet.disconnectWallet : wallet.connectWallet}
+          disabled={wallet.connecting}
+          className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium border border-line transition-colors ${
+            wallet.connected ? "border-text/20 text-text hover:border-text/40" : "text-muted hover:text-text hover:border-text/20"
+          }`}
+          title={wallet.connected ? `Connected: ${wallet.address?.slice(0, 8)}…` : "Connect wallet"}>
+          {wallet.connecting ? "…" : wallet.connected ? "◉" : "○"}
+        </button>
+        <button onClick={handleDownload}
+          className="px-2 py-1 text-[11px] text-muted hover:text-text font-mono transition-colors"
+          title="Download .clar file">↓</button>
+        <button onClick={() => setShowHelp(!showHelp)}
+          className={`px-2 py-1 text-[11px] font-mono transition-colors ${showHelp ? "text-text" : "text-muted/50 hover:text-text"}`}
+          title="Clarity reference">?</button>
+        <button onClick={() => setRightPanelOpen(!rightPanelOpen)}
+          className="px-1.5 py-1 text-[11px] text-muted/50 hover:text-text font-mono transition-colors"
+          title={rightPanelOpen ? "Close panel" : "Open panel"}>
+          {rightPanelOpen ? "◢" : "◰"}
+        </button>
       </div>
 
-      {/* Editor + Panel */}
-      <div id="ide-container" className="flex-1 flex min-h-0">
-        <div style={{ width: rightPanelOpen ? `${splitRatio}%` : "100%" }}>
-          <MonacoEditor key={activeFileId} language="clarity" theme={theme === "dark" ? "clarityforge-dark" : "clarityforge-light"} value={code} onChange={(v) => setCode(v || "")}
-            onMount={(editor) => { handleEditorMount(editor); }}
-            beforeMount={(monaco) => {
-              // Register Clarity language (guarded against HMR re-registration)
-              const existing = monaco.languages.getLanguages().find((l: { id: string }) => l.id === "clarity");
-              if (!existing) {
-                monaco.languages.register({ id: "clarity", extensions: [".clar"], aliases: ["Clarity"] });
-                monaco.languages.setMonarchTokensProvider("clarity", CLARITY_LANGUAGE);
-                monaco.languages.registerCompletionItemProvider("clarity", {
-                  provideCompletionItems: () => ({
-                    suggestions: CLARITY_COMPLETIONS.map((c) => ({
-                      label: c.label,
-                      kind: monaco.languages.CompletionItemKind.Keyword,
-                      insertText: c.insertText,
-                      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                      detail: c.detail,
-                    })),
-                  }),
-                });
-              }
-              // Dark theme
-              monaco.editor.defineTheme("clarityforge-dark", {
-                base: "vs-dark", inherit: true,
-                rules: [
-                  { token: "comment", foreground: "555555", fontStyle: "italic" },
-                  { token: "keyword", foreground: "999999" },
-                  { token: "string", foreground: "CCCCCC" },
-                ],
-                colors: {
-                  "editor.background": "#0A0A0B", "editor.foreground": "#EBEBE5",
-                  "editor.lineHighlightBackground": "#111113", "editor.selectionBackground": "#EBEBE515",
-                  "editorCursor.foreground": "#EBEBE5", "editorLineNumber.foreground": "#1E1E20",
-                  "editorLineNumber.activeForeground": "#6B6B6B", "editorGutter.background": "#0A0A0B",
-                },
-              });
-              // Light theme
-              monaco.editor.defineTheme("clarityforge-light", {
-                base: "vs", inherit: true,
-                rules: [
-                  { token: "comment", foreground: "999999", fontStyle: "italic" },
-                  { token: "keyword", foreground: "666666" },
-                  { token: "string", foreground: "333333" },
-                ],
-                colors: {
-                  "editor.background": "#FAF8F4", "editor.foreground": "#1A1A1A",
-                  "editor.lineHighlightBackground": "#F2EFEA", "editor.selectionBackground": "#1A1A1A15",
-                  "editorCursor.foreground": "#1A1A1A", "editorLineNumber.foreground": "#E5E0D8",
-                  "editorLineNumber.activeForeground": "#999999", "editorGutter.background": "#FAF8F4",
-                },
-              });
-            }}
-            options={{ fontSize: 14, fontFamily: "'DM Mono', monospace", lineNumbers: "on", minimap: { enabled: false }, scrollBeyondLastLine: false, padding: { top: 16, bottom: 16 }, renderLineHighlight: "line", cursorBlinking: "smooth", overviewRulerLanes: 0, hideCursorInOverviewRuler: true, overviewRulerBorder: false, folding: true, lineNumbersMinChars: 3, automaticLayout: true, scrollbar: { vertical: "auto", horizontal: "auto", verticalScrollbarSize: 6 } }}
-            loading={<SkeletonEditor />} />
+      {/* Help panel */}
+      {showHelp && (
+        <div className="border-b border-line bg-surface-alt px-4 py-3 shrink-0">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-mono text-muted/60 uppercase tracking-[0.12em]">Clarity Reference</span>
+            <button onClick={() => setShowHelp(false)} className="text-muted/40 hover:text-text text-xs">×</button>
+          </div>
+          <div className="grid grid-cols-4 gap-x-6 gap-y-2 text-[11px] font-mono">
+            <div>
+              <p className="text-text/80 mb-1">Tokens</p>
+              <p className="text-muted/50">define-fungible-token</p>
+              <p className="text-muted/50">define-non-fungible-token</p>
+              <p className="text-muted/50">ft-transfer?</p>
+              <p className="text-muted/50">ft-get-balance</p>
+              <p className="text-muted/50">ft-mint?</p>
+              <p className="text-muted/50">nft-mint?</p>
+              <p className="text-muted/50">nft-transfer?</p>
+              <p className="text-muted/50">nft-get-owner?</p>
+            </div>
+            <div>
+              <p className="text-text/80 mb-1">Functions</p>
+              <p className="text-muted/50">define-public</p>
+              <p className="text-muted/50">define-read-only</p>
+              <p className="text-muted/50">define-private</p>
+              <p className="text-muted/50">begin</p>
+              <p className="text-muted/50">try!</p>
+              <p className="text-muted/50">ok / err</p>
+              <p className="text-muted/50">unwrap!</p>
+              <p className="text-muted/50">asserts!</p>
+            </div>
+            <div>
+              <p className="text-text/80 mb-1">Storage</p>
+              <p className="text-muted/50">define-data-var</p>
+              <p className="text-muted/50">define-map</p>
+              <p className="text-muted/50">var-get</p>
+              <p className="text-muted/50">var-set</p>
+              <p className="text-muted/50">map-get?</p>
+              <p className="text-muted/50">map-set</p>
+              <p className="text-muted/50">map-delete</p>
+              <p className="text-muted/50">map-insert</p>
+            </div>
+            <div>
+              <p className="text-text/80 mb-1">Types</p>
+              <p className="text-muted/50">uint</p>
+              <p className="text-muted/50">int</p>
+              <p className="text-muted/50">bool</p>
+              <p className="text-muted/50">principal</p>
+              <p className="text-muted/50">buff</p>
+              <p className="text-muted/50">string-ascii</p>
+              <p className="text-muted/50">string-utf8</p>
+              <p className="text-muted/50">list / tuple / optional</p>
+            </div>
+          </div>
         </div>
+      )}
 
-        {rightPanelOpen && (
-          <div onMouseDown={() => { dragRef.current = true; }}
-            className="w-1.5 shrink-0 bg-line hover:bg-text/20 cursor-col-resize transition-colors relative">
-            <div className="absolute inset-y-0 -left-1 -right-1" />
-          </div>
-        )}
+      {/* Main area: File Explorer + Editor + Panel */}
+      <div id="ide-container" className="flex-1 flex min-h-0">
+        {/* File Explorer sidebar */}
+        <FileExplorer
+          files={files}
+          activeFileId={activeFileId}
+          onSelectFile={setActiveFileId}
+          onAddFile={handleAddFile}
+          onRenameFile={handleRenameFile}
+          onDeleteFile={handleDeleteFile}
+          unsavedFiles={unsavedFiles}
+        />
 
-        {rightPanelOpen && (
-          <div style={{ width: `${100 - splitRatio}%` }} className="border-l border-line flex flex-col min-h-0 bg-surface-alt">
-            <div className="flex items-center border-b border-line shrink-0">
-              {(["visual", "interact", "text"] as const).map((m) => (
-                <button key={m} onClick={() => setViewMode(m)}
-                  className={`px-3 py-2 text-[11px] font-mono capitalize border-b-2 -mb-px transition-colors ${viewMode === m ? "text-text border-text" : "text-muted/50 border-transparent hover:text-muted hover:border-muted/30"}`}>{m}</button>
-              ))}
-            </div>
-            <div className="flex-1 overflow-auto p-6">
-              {output ? (
-                <div>
-                  {txHash && <div className="mb-4 pb-4 border-b border-line"><p className="text-[10px] text-muted font-mono uppercase tracking-wider mb-0.5">Deployment</p><p className="font-mono text-[10px] text-muted">{wallet.connected ? "Testnet via Leather/Xverse" : "Simulated"}</p></div>}
-                  {viewMode === "visual" && analysisResult ? (
-                    <StateVisualizer result={analysisResult as any} costEstimate={(analysisResult as any).costEstimate} sourceCode={code} onNavigateToLine={navigateToLine} />
-                  ) : viewMode === "interact" && analysisResult ? (
-                    <InteractPanel analysisResult={analysisResult} selectedFn={selectedFn} setSelectedFn={setSelectedFn} fnParams={fnParams} setFnParams={setFnParams} execResult={execResult} setExecResult={setExecResult} envMode={envMode} vmStateRef={vmStateRef} selectedAccount={selectedAccount} onVmStateChange={updateVmState} />
-                  ) : (
-                    <pre className="font-mono text-xs text-text/80 leading-relaxed whitespace-pre-wrap">{renderOutput(output)}</pre>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full px-6 py-12">
-                  <div className="text-center mb-8">
-                    <p className="text-sm font-medium text-text mb-2">Welcome to ClarityForge</p>
-                    <p className="text-xs text-muted/60 max-w-xs leading-relaxed">
-                      Your code is loaded and ready. Click <span className="text-text font-mono">Run</span> to analyze and execute, or pick a different template below.
-                    </p>
-                  </div>
-                  <p className="text-[10px] text-muted/40 font-mono uppercase tracking-[0.15em] mb-4 self-start">
-                    Templates
-                  </p>
-                  <div className="grid grid-cols-2 gap-1.5 w-full">
-                    {TEMPLATES.map((t) => (
-                      <button
-                        key={t.slug}
-                        onClick={() => switchTemplate(t)}
-                        className={`text-left px-3 py-2.5 border border-line rounded-sm hover:bg-text/[0.03] hover:border-text/20 transition-colors ${
-                          activeFile.name === `${t.slug}.clar` ? "border-text/30 bg-text/[0.02]" : ""
-                        }`}
-                      >
-                        <span className="text-text text-[12px] font-mono block truncate">{t.name}</span>
-                        <span className="text-muted/50 text-[10px]">{t.tag}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-muted/30 mt-6">
-                    Ctrl+S to analyze · Ctrl+Enter to run
-                  </p>
-                </div>
-              )}
-            </div>
-            {envMode === "vm" && (
-              <AccountPanel
-                accounts={accounts}
-                selectedAccount={selectedAccount}
-                onSelectAccount={setSelectedAccount}
-                onRefresh={refreshAccounts}
-                loading={accountsLoading}
-                vmState={vmStateRef.current}
-              />
-            )}
+        {/* Editor area */}
+        <div className="flex-1 flex min-w-0">
+          <div style={{ width: rightPanelOpen ? `${splitRatio}%` : "100%" }}>
+            <MonacoEditor key={activeFileId} language="clarity" theme={theme === "dark" ? "clarityforge-dark" : "clarityforge-light"} value={code} onChange={(v) => setCode(v || "")}
+              onMount={(editor) => { handleEditorMount(editor); }}
+              beforeMount={(monaco) => {
+                const existing = monaco.languages.getLanguages().find((l: { id: string }) => l.id === "clarity");
+                if (!existing) {
+                  monaco.languages.register({ id: "clarity", extensions: [".clar"], aliases: ["Clarity"] });
+                  monaco.languages.setMonarchTokensProvider("clarity", CLARITY_LANGUAGE);
+                  monaco.languages.registerCompletionItemProvider("clarity", {
+                    provideCompletionItems: () => ({
+                      suggestions: CLARITY_COMPLETIONS.map((c) => ({
+                        label: c.label,
+                        kind: monaco.languages.CompletionItemKind.Keyword,
+                        insertText: c.insertText,
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        detail: c.detail,
+                      })),
+                    }),
+                  });
+                }
+                monaco.editor.defineTheme("clarityforge-dark", {
+                  base: "vs-dark", inherit: true,
+                  rules: [
+                    { token: "comment", foreground: "555555", fontStyle: "italic" },
+                    { token: "keyword", foreground: "999999" },
+                    { token: "string", foreground: "CCCCCC" },
+                  ],
+                  colors: {
+                    "editor.background": "#0A0A0B", "editor.foreground": "#EBEBE5",
+                    "editor.lineHighlightBackground": "#111113", "editor.selectionBackground": "#EBEBE515",
+                    "editorCursor.foreground": "#EBEBE5", "editorLineNumber.foreground": "#1E1E20",
+                    "editorLineNumber.activeForeground": "#6B6B6B", "editorGutter.background": "#0A0A0B",
+                  },
+                });
+                monaco.editor.defineTheme("clarityforge-light", {
+                  base: "vs", inherit: true,
+                  rules: [
+                    { token: "comment", foreground: "999999", fontStyle: "italic" },
+                    { token: "keyword", foreground: "666666" },
+                    { token: "string", foreground: "333333" },
+                  ],
+                  colors: {
+                    "editor.background": "#FAF8F4", "editor.foreground": "#1A1A1A",
+                    "editor.lineHighlightBackground": "#F2EFEA", "editor.selectionBackground": "#1A1A1A15",
+                    "editorCursor.foreground": "#1A1A1A", "editorLineNumber.foreground": "#E5E0D8",
+                    "editorLineNumber.activeForeground": "#999999", "editorGutter.background": "#FAF8F4",
+                  },
+                });
+              }}
+              options={{ fontSize: 14, fontFamily: "'DM Mono', monospace", lineNumbers: "on", minimap: { enabled: false }, scrollBeyondLastLine: false, padding: { top: 16, bottom: 16 }, renderLineHighlight: "line", cursorBlinking: "smooth", overviewRulerLanes: 0, hideCursorInOverviewRuler: true, overviewRulerBorder: false, folding: true, lineNumbersMinChars: 3, automaticLayout: true, scrollbar: { vertical: "auto", horizontal: "auto", verticalScrollbarSize: 6 } }}
+              loading={<SkeletonEditor />} />
           </div>
-        )}
+
+          {rightPanelOpen && (
+            <div onMouseDown={() => { dragRef.current = true; }}
+              className="w-1.5 shrink-0 bg-line hover:bg-text/20 cursor-col-resize transition-colors relative">
+              <div className="absolute inset-y-0 -left-1 -right-1" />
+            </div>
+          )}
+
+          {rightPanelOpen && (
+            <div style={{ width: `${100 - splitRatio}%` }} className="border-l border-line flex flex-col min-h-0 bg-surface-alt">
+              <div className="flex items-center border-b border-line shrink-0">
+                {(["visual", "interact", "text"] as const).map((m) => (
+                  <button key={m} onClick={() => setViewMode(m)}
+                    className={`px-3 py-2 text-[11px] font-mono capitalize border-b-2 -mb-px transition-colors ${viewMode === m ? "text-text border-text" : "text-muted/50 border-transparent hover:text-muted hover:border-muted/30"}`}>{m}</button>
+                ))}
+              </div>
+              <div className="flex-1 overflow-auto p-6">
+                {output ? (
+                  <div>
+                    {txHash && <div className="mb-4 pb-4 border-b border-line"><p className="text-[10px] text-muted font-mono uppercase tracking-wider mb-0.5">Deployment</p><p className="font-mono text-[10px] text-muted">{wallet.connected ? "Testnet via Leather/Xverse" : "Simulated"}</p></div>}
+                    {viewMode === "visual" && analysisResult ? (
+                      <StateVisualizer result={analysisResult as any} costEstimate={(analysisResult as any).costEstimate} sourceCode={code} onNavigateToLine={navigateToLine} />
+                    ) : viewMode === "interact" && analysisResult ? (
+                      <InteractPanel analysisResult={analysisResult} selectedFn={selectedFn} setSelectedFn={setSelectedFn} fnParams={fnParams} setFnParams={setFnParams} execResult={execResult} setExecResult={setExecResult} envMode={envMode} vmStateRef={vmStateRef} onVmStateChange={updateVmState} />
+                    ) : (
+                      <pre className="font-mono text-xs text-text/80 leading-relaxed whitespace-pre-wrap">{output}</pre>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full px-6 py-12">
+                    <div className="text-center mb-8">
+                      <p className="text-sm font-medium text-text mb-2">Welcome to ClarityForge</p>
+                      <p className="text-xs text-muted/60 max-w-xs leading-relaxed">
+                        Click <span className="text-text font-mono">▶ Run</span> to analyze and execute, or pick a template below.
+                      </p>
+                    </div>
+                    <p className="text-[10px] text-muted/40 font-mono uppercase tracking-[0.15em] mb-4 self-start">Templates</p>
+                    <div className="grid grid-cols-2 gap-1.5 w-full">
+                      {TEMPLATES.map((t) => (
+                        <button
+                          key={t.slug}
+                          onClick={() => switchTemplate(t)}
+                          className={`text-left px-3 py-2.5 border border-line rounded-sm hover:bg-text/[0.03] hover:border-text/20 transition-colors ${
+                            activeFile.name === `${t.slug}.clar` ? "border-text/30 bg-text/[0.02]" : ""
+                          }`}
+                        >
+                          <span className="text-text text-[12px] font-mono block truncate">{t.name}</span>
+                          <span className="text-muted/50 text-[10px]">{t.tag}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted/30 mt-6">Ctrl+S to analyze · Ctrl+Enter to run</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Status bar */}
@@ -778,7 +683,7 @@ function DemoContent() {
         <div className="flex items-center gap-4">
           <span className="text-muted/60">{activeFile.name}</span>
           {analysisResult && (
-            <span className={analysisResult && (analysisResult as any).valid ? "text-green-500/60" : "text-red-400/60"}>
+            <span className={(analysisResult as any).valid ? "text-green-500/60" : "text-red-400/60"}>
               {(analysisResult as any).valid ? "✓" : "✗"}
             </span>
           )}
@@ -789,7 +694,7 @@ function DemoContent() {
         <div className="flex items-center gap-4">
           <span className="text-muted/40">Ln {cursorPos.line}, Col {cursorPos.col}</span>
           {analysisResult && <span className="text-muted/40">{(analysisResult as any).stats?.totalLines ?? 0} lines</span>}
-          <span className="text-muted/40">{envMode === "vm" ? "VM" : envMode === "clarinet" ? "Clarinet" : "Deploy"}</span>
+          <span className="text-muted/40">{envMode}</span>
           <span className="text-muted/30">{files.length} file{files.length !== 1 ? "s" : ""}</span>
         </div>
       </div>
@@ -797,10 +702,10 @@ function DemoContent() {
   );
 }
 
-function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, setFnParams, execResult, setExecResult, envMode, vmStateRef, selectedAccount, onVmStateChange }: {
+function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, setFnParams, execResult, setExecResult, envMode, vmStateRef, onVmStateChange }: {
   analysisResult: Record<string, unknown>; selectedFn: string; setSelectedFn: (v: string) => void;
   fnParams: string[]; setFnParams: (v: string[]) => void; execResult: ExecutionResult | null; setExecResult: (v: ExecutionResult | null) => void;
-  envMode: string; vmStateRef: MutableRefObject<VmState>; selectedAccount: string;
+  envMode: string; vmStateRef: MutableRefObject<VmState>;
   onVmStateChange: (s: VmState) => void;
 }) {
   const defs = (analysisResult.definitions ?? []) as any[];
@@ -825,7 +730,7 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
 
     if (envMode === "vm") {
       const state = JSON.parse(JSON.stringify(vmStateRef.current));
-      state.caller = selectedAccount;
+      state.caller = "STAM1Q5N8TWU6BP3HE0AEBKHJWZGDDMCF6SZNR348";
       const result = executeInVm(fn, defs, fnParams, state);
       onVmStateChange(result.state);
       setExecResult({
@@ -851,11 +756,8 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
 
   return (
     <div className="space-y-5">
-      {/* Function selector */}
       <div>
-        <label className="text-[10px] text-muted/50 font-mono uppercase tracking-[0.12em] mb-2 block">
-          Function
-        </label>
+        <label className="text-[10px] text-muted/50 font-mono uppercase tracking-[0.12em] mb-2 block">Function</label>
         <select
           value={selectedFn}
           onChange={(e) => {
@@ -868,19 +770,14 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
         >
           <option value="">Select a function…</option>
           {fns.map((f: any) => (
-            <option key={f.name} value={f.name}>
-              {f.name} ({f.type === "public-fn" ? "public" : "read-only"})
-            </option>
+            <option key={f.name} value={f.name}>{f.name} ({f.type === "public-fn" ? "public" : "read-only"})</option>
           ))}
         </select>
       </div>
 
-      {/* Parameter inputs */}
       {selectedFn && selectedDef?.params?.length > 0 && (
         <div>
-          <label className="text-[10px] text-muted/50 font-mono uppercase tracking-[0.12em] mb-2 block">
-            Parameters
-          </label>
+          <label className="text-[10px] text-muted/50 font-mono uppercase tracking-[0.12em] mb-2 block">Parameters</label>
           <div className="space-y-2">
             {selectedDef.params.map((p: { name: string; type: string }, i: number) => (
               <div key={i}>
@@ -904,7 +801,6 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
         </div>
       )}
 
-      {/* Execute button */}
       {selectedFn && (
         <button
           onClick={handleExecute}
@@ -914,41 +810,30 @@ function InteractPanel({ analysisResult, selectedFn, setSelectedFn, fnParams, se
         </button>
       )}
 
-      {/* Trace output */}
       {execResult && (
         <div className="border-t border-line pt-5">
           <div className="flex items-center justify-between mb-3">
-            <label className="text-[10px] text-muted/50 font-mono uppercase tracking-[0.12em]">
-              Trace
-            </label>
-            <span className="text-[10px] text-muted/30 font-mono">
-              {execResult.steps.length} step{execResult.steps.length !== 1 ? "s" : ""}
-            </span>
+            <label className="text-[10px] text-muted/50 font-mono uppercase tracking-[0.12em]">Trace</label>
+            <span className="text-[10px] text-muted/30 font-mono">{execResult.steps.length} step{execResult.steps.length !== 1 ? "s" : ""}</span>
           </div>
           <div className="space-y-1">
             {execResult.steps.map((s, i) => (
               <div
                 key={i}
                 className={`flex items-start gap-2.5 px-3 py-2 text-[11px] rounded-sm ${
-                  s.type === "return"
-                    ? "bg-text/[0.04] border border-text/[0.06]"
-                    : s.type === "error"
-                    ? "bg-red-500/[0.06] border border-red-500/[0.12]"
+                  s.type === "return" ? "bg-text/[0.04] border border-text/[0.06]"
+                    : s.type === "error" ? "bg-red-500/[0.06] border border-red-500/[0.12]"
                     : ""
                 }`}
               >
-                <span className="mt-px w-4 text-center font-mono text-muted/50 shrink-0 select-none">
-                  {stepIcon(s.type)}
-                </span>
+                <span className="mt-px w-4 text-center font-mono text-muted/50 shrink-0 select-none">{stepIcon(s.type)}</span>
                 <span className="text-text/75 font-mono leading-relaxed">{s.detail}</span>
               </div>
             ))}
           </div>
           <div className="mt-4 pt-3 border-t border-line flex justify-between text-[11px]">
             <span className="text-muted/50 font-mono">Cost</span>
-            <span className="text-text font-mono tabular-nums">
-              {execResult.costEstimate.toLocaleString()} µSTX
-            </span>
+            <span className="text-text font-mono tabular-nums">{execResult.costEstimate.toLocaleString()} µSTX</span>
           </div>
         </div>
       )}
