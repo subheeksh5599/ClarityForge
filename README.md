@@ -26,6 +26,7 @@
 | **Wallet deploy to testnet** | ✅ | ❌ | ❌ | ❌ |
 | **Shareable snippet links** | ✅ | ❌ | ❌ | ❌ |
 | **Undo/redo** | ✅ | ❌ | ✅ | ✅ |
+| **Auto-format code** | ✅ | ❌ | ❌ | ✅ |
 | **Built-in Clarity reference** | ✅ | ❌ | ❌ | ❌ |
 | **Zero install / signup** | ✅ | ✅ | ❌ | ❌ |
 | **Clarinet SDK / real VM** | ❌ (simulator) | ✅ | ✅ | ✅ |
@@ -173,7 +174,7 @@ Nine capabilities, each documented with the mechanism behind it. All are live at
 
 ### 1 · The editor — Monaco with real Clarity syntax
 
-The editor is Monaco — the same editor that powers VS Code. ClarityForge registers a custom language definition with **50+ keywords** and proper token coloring for comments, strings, integers, uints, principals, and s-expressions. **35 autocomplete snippets** cover every `define-*` form, all `ft-*`/`nft-*` builtins, map/var operations, control flow, and contract calls. **Undo/redo** buttons in the toolbar. **Ctrl+S** and **Ctrl+Enter** to run.
+The editor is Monaco — the same editor that powers VS Code. ClarityForge registers a custom language definition with **50+ keywords** and proper token coloring for comments, strings, integers, uints, principals, and s-expressions. **35 autocomplete snippets** cover every `define-*` form, all `ft-*`/`nft-*` builtins, map/var operations, control flow, and contract calls. **Undo/redo** buttons in the toolbar. **{ } format button** auto-indents messy code based on parenthesis depth. **Ctrl+S** and **Ctrl+Enter** to run.
 
 ### 2 · File explorer sidebar
 
@@ -403,6 +404,7 @@ We want to be honest about what this project does and doesn't do:
 | Real-time error squiggles | ✅ Real | 400ms debounced analysis → Monaco markers as you type |
 | Built-in Clarity reference panel | ✅ Real | ? button: tokens, functions, storage, types |
 | Undo / redo | ✅ Real | Toolbar buttons + Ctrl+Z / Ctrl+Shift+Z |
+| Auto-format code | ✅ Real | { } button or Shift+Alt+F — auto-indents based on paren depth |
 | Shareable snippet links | ✅ Real | ↗ copies URL with base64-encoded code in hash |
 | Tokenizer (50+ keywords) | ✅ Real | `tokenizer.ts` — comments, strings, s-expressions, uints, principals |
 | Static analyzer | ✅ Real | Balanced parens, definition + parameter extraction, diagnostics, cost |
@@ -423,6 +425,7 @@ We want to be honest about what this project does and doesn't do:
 | Persistent UI state | ✅ Real | Active tab and panel visibility saved to localStorage |
 || | | |
 | Deep semantic validation (type checking, builtin arity) | ❌ Pending | Analyzer is syntactic — it does not check builtin arity. Use Clarinet. |
+| Clarinet SDK / real VM | ❌ Pending | VM is a TypeScript simulator, not the real Clarinet runtime. Real WASM VM integration planned post-grant. |
 | Trait resolution | ✅ Real | Full define-trait + impl-trait parsing, conformance checking, typed diagnostics |
 | Full Clarity runtime execution | ❌ Pending | VM is a simulator, not the real VM. Use Clarinet. |
 | Test framework | ❌ Pending | Clarinet's test harness is the right tool |
