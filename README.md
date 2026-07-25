@@ -81,7 +81,6 @@ Built for the Stacks developer ecosystem. MIT licensed. _An educational tool —
 - [Project layout](#project-layout)
 - [Tech stack](#tech-stack)
 - [Roadmap](#roadmap)
-- [Why previous attempts failed](#why-previous-attempts-failed)
 - [License](#license)
 
 ---
@@ -512,7 +511,7 @@ src/
 │   ├── analyzer.ts               Analysis + diagnostics + params + call graph
 │   ├── executor.ts               Function execution simulator
 │   ├── vm.ts                     Stateful browser VM (like Remix VM)
-│   ├── templates.ts              11 production-ready contract templates
+│   ├── templates.ts              12 production-ready contract templates
 │   └── monaco-language.ts        Monaco language definition + 35 snippets
 ├── components/
 │    ├── FileExplorer.tsx           File explorer sidebar (inline create/rename/delete)
@@ -548,27 +547,13 @@ src/
 
 ## Roadmap
 
-- **Shareable URLs** — encode a contract in the URL hash for instant sharing
-- **Compiler output** — show the serialized contract and ABI (like Remix's compile tab)
-- **Server-side storage** — optional accounts for saving contracts across devices
-- **Test framework** — write and run unit tests in the browser
-- **Mobile-optimized layout** — responsive editor for phones
-- **SIP-010 token factory** — deploy tokens from a form, no code required
-- **Mainnet deploy** — real gas estimation and fee-market awareness
-
----
-
-## Why previous attempts failed
-
-Several smart people tried to bring Clarity to the browser before us:
-
-| Project | Approach | Failure mode |
-|---------|----------|--------------|
-| **clarity-wasm** | Compile the Clarity VM (30K+ lines of Rust) to WebAssembly | Tied to stacks-core upstream — broke on nearly every change. Repo deleted. |
-| **clarity-js-sdk** | Wrap the VM in a JavaScript API (413 commits, 5 years) | Wrapping a moving target is exhausting. Archived. |
-| **clarity-lsp** | Language Server Protocol for Clarity | Merged into Clarinet — the right call. Consolidation beats fragmentation. |
-
-ClarityForge avoids all three failure modes: **no VM dependency, no upstream tracking, no tooling fragmentation.** Pure TypeScript analysis that runs anywhere — browser, server, CLI.
+- Clarinet SDK / real WASM VM — replace the TS simulator with the real Clarinet runtime in browser
+- Compiler output — show the serialized contract and ABI (like Remix's compile tab)
+- Server-side storage — optional accounts for saving contracts across devices
+- Test framework — write and run unit tests in the browser
+- Mobile-optimized layout — responsive editor for phones
+- SIP-010 token factory — deploy tokens from a form, no code required
+- Mainnet deploy — real gas estimation and fee-market awareness
 
 ---
 
