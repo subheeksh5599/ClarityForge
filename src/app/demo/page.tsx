@@ -120,6 +120,7 @@ function DemoContent() {
   // ── Undo / Redo ──
   const handleUndo = () => editorRef.current?.trigger("keyboard", "undo", null);
   const handleRedo = () => editorRef.current?.trigger("keyboard", "redo", null);
+  const handleFormat = () => editorRef.current?.getAction("editor.action.formatDocument")?.run();
 
   // ── VM state ──
   const vmStateRef = useRef<VmState>(createVmState());
@@ -450,6 +451,7 @@ function DemoContent() {
         {/* Undo / Redo */}
         <button onClick={handleUndo} className="px-1.5 py-1 text-[11px] text-muted/50 hover:text-text font-mono transition-colors" title="Undo (Ctrl+Z)">↩</button>
         <button onClick={handleRedo} className="px-1.5 py-1 text-[11px] text-muted/50 hover:text-text font-mono transition-colors" title="Redo (Ctrl+Shift+Z)">↪</button>
+        <button onClick={handleFormat} className="px-1.5 py-1 text-[11px] text-muted/50 hover:text-text font-mono transition-colors" title="Format code (Shift+Alt+F)">{ }</button>
 
         <span className="w-px h-4 bg-line mx-1" />
 
@@ -596,6 +598,41 @@ function DemoContent() {
                     }),
                   });
                 }
+
+                // Register formatter for Clarity (auto-indent based on paren depth)
+                monaco.languages.registerDocumentFormattingEditProvider("clarity", {
+                  provideDocumentFormattingEdits: (model: editor.ITextModel) => {
+                    const lines = model.getValue().split("\n");
+                    const formatted: string[] = [];
+                    let indent = 0;
+
+                    for (const raw of lines) {
+                      const line = raw.trim();
+                      if (line === "") { formatted.push(""); continue; }
+
+                      let closeCount = 0;
+                      while (line[closeCount] === ")") closeCount++;
+                      if (closeCount > 0) indent = Math.max(0, indent - closeCount);
+
+                      formatted.push("  ".repeat(indent) + line);
+
+                      let opens = 0, closes = 0;
+                      for (const ch of line) {
+                        if (ch === "(") opens++;
+                        if (ch === ")") closes++;
+                      }
+                      indent = Math.max(0, indent + opens - closes);
+                    }
+
+                    return [
+                      {
+                        range: model.getFullModelRange(),
+                        text: formatted.join("\n") + "\n",
+                      },
+                    ];
+                  },
+                });
+
                 monaco.editor.defineTheme("clarityforge-dark", {
                   base: "vs-dark", inherit: true,
                   rules: [
