@@ -422,13 +422,13 @@ We want to be honest about what this project does and doesn't do:
 | GSAP scroll animations on landing | ✅ Real | Staggered hero reveal, section fade-ins, template card stagger |
 | Loading skeletons | ✅ Real | Animated skeleton components replace all "…" placeholders |
 | Persistent UI state | ✅ Real | Active tab and panel visibility saved to localStorage |
-|| | | |
-| Deep semantic validation (type checking, builtin arity) | ❌ Pending | Analyzer is syntactic — it does not check builtin arity. Use Clarinet. |
-| Clarinet SDK / real VM | ❌ Pending | VM is a TypeScript simulator, not the real Clarinet runtime. Real WASM VM integration planned post-grant. |
-| Trait resolution | ✅ Real | Full define-trait + impl-trait parsing, conformance checking, typed diagnostics |
-| Full Clarity runtime execution | ❌ Pending | VM is a simulator, not the real VM. Use Clarinet. |
-| Test framework | ❌ Pending | Clarinet's test harness is the right tool |
-| Server-side storage / sharing | ❌ Pending | localStorage only |
+||| | | |
+|| Deep semantic validation (type checking, builtin arity) | ❌ Pending | Analyzer is syntactic — it does not check builtin arity. Use Clarinet. |
+|| Clarinet SDK / real VM | ❌ Pending | VM is a TypeScript simulator, not the real Clarinet runtime. Real WASM VM integration planned post-grant. |
+|| Trait resolution | ✅ Real | Full define-trait + impl-trait parsing, conformance checking, typed diagnostics |
+|| Full Clarity runtime execution | ❌ Pending | VM is a simulator, not the real VM. Use Clarinet. |
+|| Test framework | ❌ Pending | Clarinet's test harness is the right tool |
+|| Server-side storage / sharing | ❌ Pending | localStorage only |
 || Mainnet deploy | ❌ Pending | Testnet only, by design |
 || Deeper VM coverage (asserts, unwrap, contract-call, traits) | ❌ Pending | VM covers common patterns — not the full runtime surface |
 || Compiler output tab (ABI, serialized contract) | ❌ Pending | Like Remix's compile tab — show what gets deployed |
