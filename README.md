@@ -429,7 +429,20 @@ We want to be honest about what this project does and doesn't do:
 | Full Clarity runtime execution | ❌ Pending | VM is a simulator, not the real VM. Use Clarinet. |
 | Test framework | ❌ Pending | Clarinet's test harness is the right tool |
 | Server-side storage / sharing | ❌ Pending | localStorage only |
-| Mainnet deploy | ❌ Pending | Testnet only, by design |
+|| Mainnet deploy | ❌ Pending | Testnet only, by design |
+|| Deeper VM coverage (asserts, unwrap, contract-call, traits) | ❌ Pending | VM covers common patterns — not the full runtime surface |
+|| Compiler output tab (ABI, serialized contract) | ❌ Pending | Like Remix's compile tab — show what gets deployed |
+|| SIP compliance checker | ❌ Pending | Auto-audit: does your token follow SIP-010? NFT follow SIP-009? |
+|| Contract size estimator | ❌ Pending | Warn before deploy if contract exceeds block limit |
+|| Multi-file project support | ❌ Pending | Single file only — cross-file reference resolution needed |
+|| AI code audit | ❌ Pending | LLM-powered security review: reentrancy, missing auth, overflow, gas, SIP compliance |
+|| AI error explainer | ❌ Pending | Translates cryptic Clarinet errors to plain English with fix suggestions |
+|| AI Clarity assistant | ❌ Pending | Context-aware chat — answers questions based on your current code, not generic docs |
+|| AI test generator | ❌ Pending | Auto-generate Clarinet test files from your contract functions (happy path + edge cases) |
+|| Public template gallery | ❌ Pending | Community-submitted templates with curation |
+|| Workshop mode | ❌ Pending | Guided step-by-step contract building (like Rustlings for Clarity) |
+|| Mobile-responsive editor | ❌ Pending | Desktop-focused — phones need responsive layout |
+|| Analytics dashboard | ❌ Pending | Anonymous usage: deploys, popular templates, user counts |
 
 A hard rule: **nothing in the "pending" column is claimed as working until it ships.**
 
@@ -547,12 +560,32 @@ src/
 
 ## Roadmap
 
+### Core engine
 - Clarinet SDK / real WASM VM — replace the TS simulator with the real Clarinet runtime in browser
-- Compiler output — show the serialized contract and ABI (like Remix's compile tab)
-- Server-side storage — optional accounts for saving contracts across devices
+- Deeper VM coverage — asserts, unwrap, fold, contract-call, trait dispatch, block-height checks
+- Compiler output tab — serialized contract + ABI (like Remix's compile tab)
+- Multi-file project support — cross-file reference resolution
+
+### Developer experience
+- SIP compliance checker — auto-audit: does your token follow SIP-010? NFT follow SIP-009?
+- Contract size estimator — warn before deploy if contract exceeds block limit
 - Test framework — write and run unit tests in the browser
-- Mobile-optimized layout — responsive editor for phones
+- Mobile-responsive editor — phones and tablets
+
+### AI-powered tooling
+- AI code audit — LLM scans your contract for reentrancy, missing auth, overflow, gas inefficiencies, SIP compliance gaps
+- AI error explainer — translates cryptic Clarinet errors to plain English with fix suggestions inline
+- AI Clarity assistant — context-aware chat that answers questions based on your current code, not generic docs
+- AI test generator — auto-generates Clarinet test files from your contract functions (happy path + edge cases)
+
+### Community & growth
+- Public template gallery — community submissions with curation and voting
+- Workshop mode — guided step-by-step contract building (like Rustlings for Clarity)
+- Analytics dashboard — anonymous usage: deploys, popular templates, user counts
 - SIP-010 token factory — deploy tokens from a form, no code required
+- Server-side storage — accounts for saving contracts across devices
+
+### Production
 - Mainnet deploy — real gas estimation and fee-market awareness
 
 ---
