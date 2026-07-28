@@ -448,6 +448,25 @@ A hard rule: **nothing in the "pending" column is claimed as working until it sh
 
 ---
 
+## DeGrant proposal — what the $5,000 funds
+
+ClarityForge is a self-funded prototype. The editor, VM, templates, and deploy pipeline were built upfront to prove the idea works — before any grant decision. The DeGrant funds the next phase: turning a working prototype into the on-ramp that new Stacks devs actually use.
+
+| Line item | Cost | What it delivers |
+|-----------|------|-------------------|
+| Deeper VM simulation | $1,500 | asserts, unwrap, contract-call, trait dispatch, block-height checks — expands the simulator to cover the patterns real contracts use |
+| AI-powered tooling | $1,500 | in-editor AI code audit (security review), error explainer (plain-English diagnostics), and Clarity assistant (context-aware chat) |
+| Community adoption | $1,000 | workshop with ≥1 Stacks educator or organizer, onboarding guide, Discord #builders launch, feedback collection from real devs |
+| Templates + SIP compliance | $500 | expand to 20+ templates, automated SIP-010/SIP-009 compliance checker that audits tokens and NFTs against Stacks standards |
+| Infrastructure | $300 | server-side storage (save contracts across devices), anonymous analytics (deploy counts, popular templates), domain |
+| Demo video update | $200 | re-record demo with all new features, updated Hiro explorer walkthrough, post on X and Stacks Discord |
+
+**Already delivered without grant funds:** 24 working features — Monaco editor with Clarity syntax, static analyzer, stateful browser VM, 12 deployable templates, wallet connect + testnet deploy via Leather/Xverse, Clarinet integration, file explorer, error squiggles, shareable snippets, visual state inspector, and more. Every item marked ✅ Real in the honesty table above shipped before the application was submitted.
+
+**Grant pays for:** the 14 items marked ❌ Pending in the honesty table above — the features that turn a proof-of-concept into the tool Stacks devs reach for first.
+
+---
+
 ## Run it locally
 
 ```bash
