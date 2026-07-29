@@ -2,7 +2,10 @@
 
 <img src="https://clarityforge-sigma.vercel.app/og" alt="ClarityForge — the Remix of Stacks" width="100%" />
 
-&nbsp;
+<video src="docs/forge.mp4" poster="https://clarityforge-sigma.vercel.app/og"
+  controls muted loop width="100%"
+  style="border-radius:8px; margin-top:12px">
+</video>
 
 [![Live demo](https://img.shields.io/badge/●_live-clarityforge--sigma.vercel.app-5546FF)](https://clarityforge-sigma.vercel.app)
 [![Demo video](https://img.shields.io/badge/▶-demo%20video-8b7dff)](https://x.com/KomariS18774/status/2077757620262486182)
